@@ -12,13 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install Solana & Anchor
+      - name: Install Rust and Cargo
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          cargo install --contract --force anchor-cli --version 0.29.0
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI
+        run: |
+          # Perbaikan: Menghapus --contract dan menggunakan --force
+          cargo install --force anchor-cli --version 0.29.0
 
       - name: Build Program
         run: |
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           anchor build
