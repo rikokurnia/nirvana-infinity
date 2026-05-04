@@ -1,0 +1,24 @@
+name: Nirvana CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Solana & Anchor
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          cargo install --contract --force anchor-cli --version 0.29.0
+
+      - name: Build Program
+        run: |
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          anchor build
