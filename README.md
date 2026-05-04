@@ -1,3 +1,6 @@
+<img width="4624" height="1059" alt="Banner Nirvana" src="https://github.com/user-attachments/assets/aa3e0f91-8022-470f-af68-575d78e64414" />
+
+
 # 🎋 Nirvana Protocol: Equity-Streaming Engine
 
 Nirvana is a specialized Solana program designed for **Equity-Streaming**, a hybrid distribution model that synchronizes continuous linear token unlocks with event-driven performance milestones. 
