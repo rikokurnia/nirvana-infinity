@@ -19,6 +19,7 @@ jobs:
           override: true
 
       - name: Install Solana
+        # Perbaikan path: menggunakan '/' untuk masuk ke sub-directory action
         uses: metaplex-foundation/actions/setup-solana@v1
         with:
           solana-version: '1.18.15'
