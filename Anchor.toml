@@ -1,8 +1,5 @@
 [programs.devnet]
-nirvana = "Nirvana111111111111111111111111111111111111"
-
-[registry]
-url = "https://anchor.projectserum.com"
+nirvana = "REPLACE_WITH_REAL_PROGRAM_ID"
 
 [provider]
 cluster = "devnet"
