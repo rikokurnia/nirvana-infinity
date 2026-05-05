@@ -21,13 +21,16 @@ jobs:
       - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          # Menambahkan path secara permanen ke environment GitHub
+          echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Install Anchor CLI
         run: |
-          # Perbaikan: Menghapus --contract dan menggunakan --force
-          cargo install --force anchor-cli --version 0.29.0
+          # Perbaikan instalasi anchor menggunakan metode yang lebih ringan
+          cargo install --force anchor-cli --version 0.29.0 --no-default-features
 
       - name: Build Program
         run: |
+          # Menjalankan build dengan path yang sudah diperbarui
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           anchor build
