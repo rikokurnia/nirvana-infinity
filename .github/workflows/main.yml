@@ -11,19 +11,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. Install Rust (Updated to latest stable to support lockfile v4)
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
-          components: rustfmt, clippy
 
-      # 3. Install Solana CLI (deterministic)
       - name: Install Solana CLI
         run: |
           set -e
@@ -31,22 +27,16 @@ jobs:
           tar -xjf solana-release-x86_64-unknown-linux-gnu.tar.bz2
           echo "$PWD/solana-release/bin" >> $GITHUB_PATH
           export PATH="$PWD/solana-release/bin:$PATH"
-          solana --version
 
-      # 4. Debug Solana
-      - name: Debug Solana
-        run: |
-          which solana
-          solana --version
-
-      # 5. Install Anchor CLI
       - name: Install Anchor CLI
         run: |
           cargo install --force anchor-cli --version 0.29.0 --no-default-features
 
-      # 6. Build Program (FIX: Force lockfile update if incompatible)
-      - name: Build Program
+      - name: Build Program (The Nuclear Option)
         run: |
-          # This command will refresh the lockfile to match the CI environment's cargo version
-          cargo update
+          # Hapus lockfile yang bermasalah agar CI generate ulang yang kompatibel
+          rm -f Cargo.lock
+          rm -f programs/nirvana/Cargo.lock
+          
+          # Jalankan build
           anchor build
