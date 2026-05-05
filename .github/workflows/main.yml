@@ -12,19 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install Rust and Cargo
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
 
-      - name: Install Solana CLI & SDK
-        run: |
-          sh -c "$(curl -sSfL https://release.solana.com/v1.18.15/install)"
-          echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
-          # Paksa inisialisasi SDK agar build-bpf tersedia
-          solana --version
+      - name: Install Solana
+        uses: metaplex-foundation/actions/setup-solana@v1
+        with:
+          solana-version: '1.18.15'
 
       - name: Install Anchor CLI
         run: |
@@ -32,6 +29,4 @@ jobs:
 
       - name: Build Program
         run: |
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
-          # Pastikan bpf-tools siap
           anchor build
