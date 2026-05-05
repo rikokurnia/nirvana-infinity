@@ -15,12 +15,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. Install Rust
+      # 2. Install Rust (Updated to latest stable to support lockfile v4)
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
+          components: rustfmt, clippy
 
       # 3. Install Solana CLI (deterministic)
       - name: Install Solana CLI
@@ -32,7 +33,7 @@ jobs:
           export PATH="$PWD/solana-release/bin:$PATH"
           solana --version
 
-      # 4. Debug (optional tapi disarankan)
+      # 4. Debug Solana
       - name: Debug Solana
         run: |
           which solana
@@ -43,7 +44,9 @@ jobs:
         run: |
           cargo install --force anchor-cli --version 0.29.0 --no-default-features
 
-      # 6. Build Program (FINAL FIX)
+      # 6. Build Program (FIX: Force lockfile update if incompatible)
       - name: Build Program
         run: |
+          # This command will refresh the lockfile to match the CI environment's cargo version
+          cargo update
           anchor build
