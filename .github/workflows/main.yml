@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
+      # 1. Checkout repository
       - name: Checkout
         uses: actions/checkout@v3
 
@@ -22,7 +22,7 @@ jobs:
           toolchain: stable
           override: true
 
-      # 3. Install Solana (deterministic via GitHub release)
+      # 3. Install Solana CLI (deterministic)
       - name: Install Solana CLI
         run: |
           set -e
@@ -32,19 +32,18 @@ jobs:
           export PATH="$PWD/solana-release/bin:$PATH"
           solana --version
 
-      # 4. Debug (biar gak blind kalau error lagi)
+      # 4. Debug (optional tapi disarankan)
       - name: Debug Solana
         run: |
           which solana
           solana --version
-          ls solana-release/bin
 
       # 5. Install Anchor CLI
       - name: Install Anchor CLI
         run: |
           cargo install --force anchor-cli --version 0.29.0 --no-default-features
 
-      # 6. Build program (force SBF biar gak kena build-bpf)
+      # 6. Build Program (FINAL FIX)
       - name: Build Program
         run: |
-          anchor build -- --use-sbf
+          anchor build
