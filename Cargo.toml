@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "programs/nirvana"
+]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[patch.crates-io]
+# Jika ada dependency spesifik yang perlu di-patch, tambahkan di sini
