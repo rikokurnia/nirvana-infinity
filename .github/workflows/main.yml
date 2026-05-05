@@ -18,19 +18,20 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install Solana CLI
+      - name: Install Solana CLI & SDK
         run: |
-          sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
-          # Menambahkan path secara permanen ke environment GitHub
+          sh -c "$(curl -sSfL https://release.solana.com/v1.18.15/install)"
           echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          # Paksa inisialisasi SDK agar build-bpf tersedia
+          solana --version
 
       - name: Install Anchor CLI
         run: |
-          # Perbaikan instalasi anchor menggunakan metode yang lebih ringan
           cargo install --force anchor-cli --version 0.29.0 --no-default-features
 
       - name: Build Program
         run: |
-          # Menjalankan build dengan path yang sudah diperbarui
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          # Pastikan bpf-tools siap
           anchor build
