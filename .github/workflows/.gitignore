@@ -1,0 +1,8 @@
+# Ignore Anchor build artifacts
+target/
+
+# Ignore lockfiles to prevent CI version mismatch
+Cargo.lock
+
+# Ignore wallet secrets
+id.json
