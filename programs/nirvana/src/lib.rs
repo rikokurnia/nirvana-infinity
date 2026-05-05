@@ -1,13 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-declare_id!("Nirvana111111111111111111111111111111111111");
+declare_id!("DbeNASbybfJj2h1G4FP5bR11G2tcCrqA6WVb1iYZr5m1");
 
 #[program]
 pub mod nirvana_protocol {
     use super::*;
 
-    /// Initialize the Equity-Streaming distribution state and fund the vault.
     pub fn create_stream(
         ctx: Context<CreateStream>,
         base_amount: u64,
@@ -17,20 +16,18 @@ pub mod nirvana_protocol {
         cliff_time: i64,
     ) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
-        let current_time = Clock::get()?.unix_timestamp;
+        let now = Clock::get()?.unix_timestamp;
 
-        // Security validations
         require!(end_time > start_time, NirvanaError::InvalidTimeRange);
-        require!(
-            cliff_time >= start_time && cliff_time <= end_time,
-            NirvanaError::InvalidCliff
-        );
-        require!(start_time >= current_time, NirvanaError::StartTimeInPast);
-        
-        let total_deposit = base_amount.checked_add(milestone_amount).unwrap();
-        require!(total_deposit > 0, NirvanaError::ZeroDepositAmount);
+        require!(cliff_time >= start_time && cliff_time <= end_time, NirvanaError::InvalidCliff);
+        require!(start_time >= now, NirvanaError::StartTimeInPast);
 
-        // Initialize state fields exactly mapping to the ER Diagram
+        let total = base_amount
+            .checked_add(milestone_amount)
+            .ok_or(NirvanaError::MathOverflow)?;
+
+        require!(total > 0, NirvanaError::ZeroDepositAmount);
+
         state.authority = ctx.accounts.authority.key();
         state.recipient = ctx.accounts.recipient.key();
         state.token_mint = ctx.accounts.token_mint.key();
@@ -42,147 +39,179 @@ pub mod nirvana_protocol {
         state.cliff_time = cliff_time;
         state.milestone_achieved = false;
         state.is_cancelled = false;
+        state.bump = ctx.bumps.distribution_state;
 
-        // Transfer funds from Creator to the PDA Vault
         let cpi_accounts = Transfer {
             from: ctx.accounts.authority_token_account.to_account_info(),
             to: ctx.accounts.token_vault.to_account_info(),
             authority: ctx.accounts.authority.to_account_info(),
         };
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        token::transfer(cpi_ctx, total_deposit)?;
+
+        token::transfer(
+            CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
+            total,
+        )?;
+
+        emit!(StreamCreated {
+            authority: state.authority,
+            recipient: state.recipient,
+            total_amount: total,
+        });
 
         Ok(())
     }
 
-    /// Oracle or Authority triggers this to flip the milestone boolean.
     pub fn trigger_milestone(ctx: Context<TriggerMilestone>) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
-        
+
         require!(!state.is_cancelled, NirvanaError::StreamCancelled);
         require!(!state.milestone_achieved, NirvanaError::MilestoneAlreadyAchieved);
 
         state.milestone_achieved = true;
+
+        emit!(MilestoneTriggered {
+            recipient: state.recipient,
+        });
+
         Ok(())
     }
 
-    /// Beneficiary claims currently unlocked tokens (Linear + Milestone).
     pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
-        let current_time = Clock::get()?.unix_timestamp;
+        let now = Clock::get()?.unix_timestamp;
 
         require!(!state.is_cancelled, NirvanaError::StreamCancelled);
-        require!(current_time >= state.cliff_time, NirvanaError::CliffNotReached);
+        require!(now >= state.cliff_time, NirvanaError::CliffNotReached);
 
-        // Calculate linear stream progress
-        let total_duration = state.end_time.checked_sub(state.start_time).unwrap();
-        let elapsed = if current_time > state.end_time {
+        let total_duration = state
+            .end_time
+            .checked_sub(state.start_time)
+            .ok_or(NirvanaError::MathOverflow)?;
+
+        let elapsed = if now > state.end_time {
             total_duration
         } else {
-            current_time.checked_sub(state.start_time).unwrap()
+            now.checked_sub(state.start_time)
+                .ok_or(NirvanaError::MathOverflow)?
         };
 
-        // Math: (base_amount * elapsed) / total_duration. Cast to u128 to prevent overflow.
-        let linear_unlocked = if total_duration > 0 {
+        let linear = if total_duration > 0 {
             (state.base_amount as u128)
                 .checked_mul(elapsed as u128)
-                .unwrap()
+                .ok_or(NirvanaError::MathOverflow)?
                 .checked_div(total_duration as u128)
-                .unwrap() as u64
+                .ok_or(NirvanaError::MathOverflow)? as u64
         } else {
             state.base_amount
         };
 
-        // Calculate performance bonus
-        let milestone_unlocked = if state.milestone_achieved {
+        let milestone = if state.milestone_achieved {
             state.milestone_amount
         } else {
             0
         };
 
-        let total_unlocked = linear_unlocked.checked_add(milestone_unlocked).unwrap();
-        let claimable = total_unlocked.checked_sub(state.claimed_amount).unwrap();
+        let unlocked = linear
+            .checked_add(milestone)
+            .ok_or(NirvanaError::MathOverflow)?;
+
+        let claimable = unlocked
+            .checked_sub(state.claimed_amount)
+            .ok_or(NirvanaError::MathOverflow)?;
 
         require!(claimable > 0, NirvanaError::NothingToClaim);
 
-        // Update state before transfer to prevent re-entrancy
-        state.claimed_amount = state.claimed_amount.checked_add(claimable).unwrap();
+        state.claimed_amount = state
+            .claimed_amount
+            .checked_add(claimable)
+            .ok_or(NirvanaError::MathOverflow)?;
 
-        // Perform CPI transfer from Vault PDA to Recipient
-        let authority_key = state.authority.key();
-        let recipient_key = state.recipient.key();
-        let signer_seeds: &[&[&[u8]]] = &[&[
+        let seeds = &[
             b"state",
-            authority_key.as_ref(),
-            recipient_key.as_ref(),
-            &[ctx.bumps.distribution_state],
-        ]];
+            state.authority.as_ref(),
+            state.recipient.as_ref(),
+            &[state.bump],
+        ];
+
+        let signer = &[&seeds[..]];
 
         let cpi_accounts = Transfer {
             from: ctx.accounts.token_vault.to_account_info(),
             to: ctx.accounts.recipient_token_account.to_account_info(),
             authority: state.to_account_info(),
         };
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
-        
-        token::transfer(cpi_ctx, claimable)?;
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                signer,
+            ),
+            claimable,
+        )?;
+
+        emit!(Withdrawn {
+            recipient: state.recipient,
+            amount: claimable,
+        });
 
         Ok(())
     }
 
-    /// Terminates the stream, refunds unvested tokens to Creator.
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
+
         require!(!state.is_cancelled, NirvanaError::StreamCancelled);
 
         state.is_cancelled = true;
 
-        // Advanced Logic: You can add logic here to force-withdraw the unlocked 
-        // portion to the recipient before refunding the rest to the creator.
-        // For MVP, we simply lock the state and allow admin to retrieve the vault balance.
-        
-        let vault_balance = ctx.accounts.token_vault.amount;
-        if vault_balance > 0 {
-            let authority_key = state.authority.key();
-            let recipient_key = state.recipient.key();
-            let signer_seeds: &[&[&[u8]]] = &[&[
+        let balance = ctx.accounts.token_vault.amount;
+
+        if balance > 0 {
+            let seeds = &[
                 b"state",
-                authority_key.as_ref(),
-                recipient_key.as_ref(),
-                &[ctx.bumps.distribution_state],
-            ]];
+                state.authority.as_ref(),
+                state.recipient.as_ref(),
+                &[state.bump],
+            ];
+
+            let signer = &[&seeds[..]];
 
             let cpi_accounts = Transfer {
                 from: ctx.accounts.token_vault.to_account_info(),
                 to: ctx.accounts.authority_token_account.to_account_info(),
                 authority: state.to_account_info(),
             };
-            let cpi_program = ctx.accounts.token_program.to_account_info();
-            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
-            
-            token::transfer(cpi_ctx, vault_balance)?;
+
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                ),
+                balance,
+            )?;
         }
+
+        emit!(Cancelled {
+            authority: state.authority,
+        });
 
         Ok(())
     }
 }
 
-// ------------------------------------------------------------------------
-// Accounts Contexts
-// ------------------------------------------------------------------------
+// ---------------- ACCOUNTS ----------------
 
 #[derive(Accounts)]
 pub struct CreateStream<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    
-    /// CHECK: Safely used only as an identifier for PDA derivation
+
     pub recipient: UncheckedAccount<'info>,
-    
+
     pub token_mint: Account<'info, Mint>,
-    
+
     #[account(
         init,
         payer = authority,
@@ -191,35 +220,26 @@ pub struct CreateStream<'info> {
         bump
     )]
     pub distribution_state: Account<'info, DistributionState>,
-    
+
     #[account(
         init,
         payer = authority,
         seeds = [b"vault", distribution_state.key().as_ref()],
         bump,
         token::mint = token_mint,
-        token::authority = distribution_state, // Owned by the State PDA
+        token::authority = distribution_state
     )]
     pub token_vault: Account<'info, TokenAccount>,
-    
-    #[account(mut)]
-    pub authority_token_account: Account<'info, TokenAccount>,
-    
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct TriggerMilestone<'info> {
-    /// Restricted strictly to the stream creator/oracle
-    #[account(mut)]
-    pub authority: Signer<'info>,
 
     #[account(
         mut,
-        has_one = authority @ NirvanaError::UnauthorizedTrigger
+        constraint = authority_token_account.owner == authority.key(),
+        constraint = authority_token_account.mint == token_mint.key()
     )]
-    pub distribution_state: Account<'info, DistributionState>,
+    pub authority_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -229,7 +249,9 @@ pub struct Withdraw<'info> {
 
     #[account(
         mut,
-        has_one = recipient @ NirvanaError::UnauthorizedClaimer
+        has_one = recipient,
+        seeds = [b"state", distribution_state.authority.as_ref(), recipient.key().as_ref()],
+        bump = distribution_state.bump
     )]
     pub distribution_state: Account<'info, DistributionState>,
 
@@ -240,10 +262,22 @@ pub struct Withdraw<'info> {
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = recipient_token_account.mint == distribution_state.token_mint
+    )]
     pub recipient_token_account: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct TriggerMilestone<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(mut, has_one = authority)]
+    pub distribution_state: Account<'info, DistributionState>,
 }
 
 #[derive(Accounts)]
@@ -253,7 +287,10 @@ pub struct Cancel<'info> {
 
     #[account(
         mut,
-        has_one = authority @ NirvanaError::UnauthorizedCancellation
+        close = authority,
+        has_one = authority,
+        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref()],
+        bump = distribution_state.bump
     )]
     pub distribution_state: Account<'info, DistributionState>,
 
@@ -270,9 +307,7 @@ pub struct Cancel<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-// ------------------------------------------------------------------------
-// State & Errors
-// ------------------------------------------------------------------------
+// ---------------- STATE ----------------
 
 #[account]
 #[derive(InitSpace)]
@@ -288,30 +323,56 @@ pub struct DistributionState {
     pub cliff_time: i64,
     pub milestone_achieved: bool,
     pub is_cancelled: bool,
+    pub bump: u8,
 }
+
+// ---------------- EVENTS ----------------
+
+#[event]
+pub struct StreamCreated {
+    pub authority: Pubkey,
+    pub recipient: Pubkey,
+    pub total_amount: u64,
+}
+
+#[event]
+pub struct Withdrawn {
+    pub recipient: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct Cancelled {
+    pub authority: Pubkey,
+}
+
+#[event]
+pub struct MilestoneTriggered {
+    pub recipient: Pubkey,
+}
+
+// ---------------- ERRORS ----------------
 
 #[error_code]
 pub enum NirvanaError {
-    #[msg("End time must be strictly greater than start time.")]
+    #[msg("Invalid time range.")]
     InvalidTimeRange,
-    #[msg("Cliff time must be between start and end time.")]
+    #[msg("Invalid cliff.")]
     InvalidCliff,
-    #[msg("Stream start time cannot be in the past.")]
+    #[msg("Start time in past.")]
     StartTimeInPast,
-    #[msg("Total deposit amount must be greater than zero.")]
+    #[msg("Zero deposit.")]
     ZeroDepositAmount,
-    #[msg("Unauthorized: Only the assigned oracle or creator can trigger the milestone.")]
-    UnauthorizedTrigger,
-    #[msg("Milestone has already been achieved and recorded.")]
+    #[msg("Unauthorized.")]
+    Unauthorized,
+    #[msg("Milestone already achieved.")]
     MilestoneAlreadyAchieved,
-    #[msg("Unauthorized: Only the designated recipient can claim tokens.")]
-    UnauthorizedClaimer,
-    #[msg("Unauthorized: Only the creator can cancel the stream.")]
-    UnauthorizedCancellation,
-    #[msg("The stream has been cancelled.")]
+    #[msg("Stream cancelled.")]
     StreamCancelled,
-    #[msg("The cliff period has not been reached yet.")]
+    #[msg("Cliff not reached.")]
     CliffNotReached,
-    #[msg("No new tokens are available to claim at this time.")]
+    #[msg("Nothing to claim.")]
     NothingToClaim,
+    #[msg("Math overflow.")]
+    MathOverflow,
 }

@@ -1,0 +1,122 @@
+{
+  "version": "0.1.0",
+  "name": "nirvana_protocol",
+  "instructions": [
+    {
+      "name": "createStream",
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "recipient", "isMut": false, "isSigner": false },
+        { "name": "tokenMint", "isMut": false, "isSigner": false },
+        { "name": "distributionState", "isMut": true, "isSigner": false },
+        { "name": "tokenVault", "isMut": true, "isSigner": false },
+        { "name": "authorityTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "baseAmount", "type": "u64" },
+        { "name": "milestoneAmount", "type": "u64" },
+        { "name": "startTime", "type": "i64" },
+        { "name": "endTime", "type": "i64" },
+        { "name": "cliffTime", "type": "i64" }
+      ]
+    },
+    {
+      "name": "triggerMilestone",
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "distributionState", "isMut": true, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "accounts": [
+        { "name": "recipient", "isMut": true, "isSigner": true },
+        { "name": "distributionState", "isMut": true, "isSigner": false },
+        { "name": "tokenVault", "isMut": true, "isSigner": false },
+        { "name": "recipientTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel",
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "distributionState", "isMut": true, "isSigner": false },
+        { "name": "tokenVault", "isMut": true, "isSigner": false },
+        { "name": "authorityTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "DistributionState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "publicKey" },
+          { "name": "recipient", "type": "publicKey" },
+          { "name": "tokenMint", "type": "publicKey" },
+          { "name": "baseAmount", "type": "u64" },
+          { "name": "milestoneAmount", "type": "u64" },
+          { "name": "claimedAmount", "type": "u64" },
+          { "name": "startTime", "type": "i64" },
+          { "name": "endTime", "type": "i64" },
+          { "name": "cliffTime", "type": "i64" },
+          { "name": "milestoneAchieved", "type": "bool" },
+          { "name": "isCancelled", "type": "bool" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "StreamCreated",
+      "fields": [
+        { "name": "authority", "type": "publicKey", "index": false },
+        { "name": "recipient", "type": "publicKey", "index": false },
+        { "name": "totalAmount", "type": "u64", "index": false }
+      ]
+    },
+    {
+      "name": "Withdrawn",
+      "fields": [
+        { "name": "recipient", "type": "publicKey", "index": false },
+        { "name": "amount", "type": "u64", "index": false }
+      ]
+    },
+    {
+      "name": "Cancelled",
+      "fields": [
+        { "name": "authority", "type": "publicKey", "index": false }
+      ]
+    },
+    {
+      "name": "MilestoneTriggered",
+      "fields": [
+        { "name": "recipient", "type": "publicKey", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "InvalidTimeRange", "msg": "Invalid time range." },
+    { "code": 6001, "name": "InvalidCliff", "msg": "Invalid cliff." },
+    { "code": 6002, "name": "StartTimeInPast", "msg": "Start time in past." },
+    { "code": 6003, "name": "ZeroDepositAmount", "msg": "Zero deposit." },
+    { "code": 6004, "name": "Unauthorized", "msg": "Unauthorized." },
+    { "code": 6005, "name": "MilestoneAlreadyAchieved", "msg": "Milestone already achieved." },
+    { "code": 6006, "name": "StreamCancelled", "msg": "Stream cancelled." },
+    { "code": 6007, "name": "CliffNotReached", "msg": "Cliff not reached." },
+    { "code": 6008, "name": "NothingToClaim", "msg": "Nothing to claim." },
+    { "code": 6009, "name": "MathOverflow", "msg": "Math overflow." }
+  ],
+  "metadata": {
+    "address": "DbeNASbybfJj2h1G4FP5bR11G2tcCrqA6WVb1iYZr5m1"
+  }
+}

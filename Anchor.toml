@@ -1,5 +1,5 @@
 [programs.devnet]
-nirvana = "REPLACE_WITH_REAL_PROGRAM_ID"
+nirvana = "DbeNASbybfJj2h1G4FP5bR11G2tcCrqA6WVb1iYZr5m1"
 
 [provider]
 cluster = "devnet"
