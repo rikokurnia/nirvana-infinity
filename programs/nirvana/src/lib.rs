@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-declare_id!("DbeNASbybfJj2h1G4FP5bR11G2tcCrqA6WVb1iYZr5m1");
+declare_id!("BpHiA8c1NtStZiu7romfc3hEG7nzCoLYdPUm7XmdVuZS");
 
 #[program]
 pub mod nirvana_protocol {
@@ -163,18 +163,94 @@ pub mod nirvana_protocol {
 
         require!(!state.is_cancelled, NirvanaError::StreamCancelled);
 
+        let balance = ctx.accounts.token_vault.amount;
+        let now = Clock::get()?.unix_timestamp;
+
+        let linear_unlocked;
+        let milestone_unlocked;
+
+        if now >= state.cliff_time {
+            let total_duration = state
+                .end_time
+                .checked_sub(state.start_time)
+                .ok_or(NirvanaError::MathOverflow)?;
+
+            let elapsed = if now > state.end_time {
+                total_duration
+            } else {
+                now.checked_sub(state.start_time)
+                    .ok_or(NirvanaError::MathOverflow)?
+            };
+
+            linear_unlocked = if total_duration > 0 {
+                (state.base_amount as u128)
+                    .checked_mul(elapsed as u128)
+                    .ok_or(NirvanaError::MathOverflow)?
+                    .checked_div(total_duration as u128)
+                    .ok_or(NirvanaError::MathOverflow)? as u64
+            } else {
+                state.base_amount
+            };
+
+            milestone_unlocked = if state.milestone_achieved {
+                state.milestone_amount
+            } else {
+                0
+            };
+        } else {
+            linear_unlocked = 0;
+            milestone_unlocked = 0;
+        }
+
+        let unlocked = linear_unlocked
+            .checked_add(milestone_unlocked)
+            .ok_or(NirvanaError::MathOverflow)?;
+
+        let recipient_share = unlocked
+            .checked_sub(state.claimed_amount)
+            .ok_or(NirvanaError::MathOverflow)?
+            .min(balance);
+
+        let creator_share = balance
+            .checked_sub(recipient_share)
+            .ok_or(NirvanaError::MathOverflow)?;
+
         state.is_cancelled = true;
 
-        let balance = ctx.accounts.token_vault.amount;
+        let bump = state.bump;
 
-        if balance > 0 {
+        if recipient_share > 0 {
             let seeds = &[
                 b"state",
                 state.authority.as_ref(),
                 state.recipient.as_ref(),
-                &[state.bump],
+                &[bump],
             ];
+            let signer = &[&seeds[..]];
 
+            let cpi_accounts = Transfer {
+                from: ctx.accounts.token_vault.to_account_info(),
+                to: ctx.accounts.recipient_token_account.to_account_info(),
+                authority: state.to_account_info(),
+            };
+
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                ),
+                recipient_share,
+            )?;
+        }
+
+        if creator_share > 0 {
+            let seeds = &[
+                b"state",
+                state.authority.as_ref(),
+                state.recipient.as_ref(),
+                &[bump],
+            ];
             let signer = &[&seeds[..]];
 
             let cpi_accounts = Transfer {
@@ -189,7 +265,7 @@ pub mod nirvana_protocol {
                     cpi_accounts,
                     signer,
                 ),
-                balance,
+                creator_share,
             )?;
         }
 
@@ -208,6 +284,7 @@ pub struct CreateStream<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// CHECK: recipient pubkey is validated via PDA seeds derivation
     pub recipient: UncheckedAccount<'info>,
 
     pub token_mint: Account<'info, Mint>,
@@ -219,7 +296,7 @@ pub struct CreateStream<'info> {
         seeds = [b"state", authority.key().as_ref(), recipient.key().as_ref()],
         bump
     )]
-    pub distribution_state: Account<'info, DistributionState>,
+    pub distribution_state: Box<Account<'info, DistributionState>>,
 
     #[account(
         init,
@@ -229,14 +306,14 @@ pub struct CreateStream<'info> {
         token::mint = token_mint,
         token::authority = distribution_state
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = authority_token_account.owner == authority.key(),
         constraint = authority_token_account.mint == token_mint.key()
     )]
-    pub authority_token_account: Account<'info, TokenAccount>,
+    pub authority_token_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -253,20 +330,20 @@ pub struct Withdraw<'info> {
         seeds = [b"state", distribution_state.authority.as_ref(), recipient.key().as_ref()],
         bump = distribution_state.bump
     )]
-    pub distribution_state: Account<'info, DistributionState>,
+    pub distribution_state: Box<Account<'info, DistributionState>>,
 
     #[account(
         mut,
         seeds = [b"vault", distribution_state.key().as_ref()],
         bump
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = recipient_token_account.mint == distribution_state.token_mint
     )]
-    pub recipient_token_account: Account<'info, TokenAccount>,
+    pub recipient_token_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -277,7 +354,7 @@ pub struct TriggerMilestone<'info> {
     pub authority: Signer<'info>,
 
     #[account(mut, has_one = authority)]
-    pub distribution_state: Account<'info, DistributionState>,
+    pub distribution_state: Box<Account<'info, DistributionState>>,
 }
 
 #[derive(Accounts)]
@@ -292,17 +369,23 @@ pub struct Cancel<'info> {
         seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref()],
         bump = distribution_state.bump
     )]
-    pub distribution_state: Account<'info, DistributionState>,
+    pub distribution_state: Box<Account<'info, DistributionState>>,
 
     #[account(
         mut,
         seeds = [b"vault", distribution_state.key().as_ref()],
         bump
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub authority_token_account: Account<'info, TokenAccount>,
+    pub authority_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        constraint = recipient_token_account.mint == distribution_state.token_mint
+    )]
+    pub recipient_token_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
