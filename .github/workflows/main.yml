@@ -15,11 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. Install Rust
-      - name: Install Rust
+      # 2. Install Rust Nightly (Needed for -Z flags)
+      - name: Install Rust Nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
 
       # 3. Install Solana CLI
@@ -36,9 +36,9 @@ jobs:
         run: |
           cargo install --force anchor-cli --version 0.29.0 --no-default-features
 
-      # 5. Clean and Build Program
-      - name: Clean and Build Program
+      # 5. Build with Requested Specification
+      - name: Build Program
         run: |
-          # Ensure absolutely no lockfiles exist before building
-          find . -name "Cargo.lock" -type f -delete
+          # Mengikuti spek error: menggunakan flag -Z untuk handle lockfile v4
+          export RUSTFLAGS="-Znext-lockfile-bump"
           anchor build
