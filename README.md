@@ -120,7 +120,7 @@ This repository is equipped with **GitHub Actions**. Every push or pull request 
 ## 👥 Contributor Roles
 
 * **Sora Onchain (@SoraOnchain)**: Lead Architect. Responsible for manual project initialization, account struct definitions, core instruction scaffolding, and CI pipeline setup.
-* **Riko Kurnia (@PartnerUsername)**: Frontend Integration & Documentation. Responsible for README verification, local build testing, and frontend workspace setup.
+* **Riko Kurnia (@rikokurnia)**: Frontend Integration & Documentation. Responsible for README verification, local build testing, and frontend workspace setup.
 
 ---
 
