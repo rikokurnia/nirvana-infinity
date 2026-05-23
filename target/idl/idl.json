@@ -48,6 +48,7 @@
         { "name": "distributionState", "isMut": true, "isSigner": false },
         { "name": "tokenVault", "isMut": true, "isSigner": false },
         { "name": "authorityTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "recipientTokenAccount", "isMut": true, "isSigner": false },
         { "name": "tokenProgram", "isMut": false, "isSigner": false }
       ],
       "args": []
@@ -112,11 +113,14 @@
     { "code": 6004, "name": "Unauthorized", "msg": "Unauthorized." },
     { "code": 6005, "name": "MilestoneAlreadyAchieved", "msg": "Milestone already achieved." },
     { "code": 6006, "name": "StreamCancelled", "msg": "Stream cancelled." },
-    { "code": 6007, "name": "CliffNotReached", "msg": "Cliff not reached." },
-    { "code": 6008, "name": "NothingToClaim", "msg": "Nothing to claim." },
-    { "code": 6009, "name": "MathOverflow", "msg": "Math overflow." }
+    { "code": 6007, "name": "AlreadyCancelled", "msg": "Already cancelled." },
+    { "code": 6008, "name": "FullyVested", "msg": "Fully vested." },
+    { "code": 6009, "name": "CliffNotReached", "msg": "Cliff not reached." },
+    { "code": 6010, "name": "NothingToWithdraw", "msg": "Nothing to withdraw." },
+    { "code": 6011, "name": "StreamExpired", "msg": "Stream expired." },
+    { "code": 6012, "name": "MathOverflow", "msg": "Math overflow." }
   ],
   "metadata": {
-    "address": "DbeNASbybfJj2h1G4FP5bR11G2tcCrqA6WVb1iYZr5m1"
+    "address": "BpHiA8c1NtStZiu7romfc3hEG7nzCoLYdPUm7XmdVuZS"
   }
 }
