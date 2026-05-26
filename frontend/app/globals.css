@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Hanken Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-mint: #2FF3C8;
+  --color-solana-green: #14F195;
+  --color-surface: #141218;
+  --color-on-surface: #e6e0e9;
+  --color-on-surface-variant: #cbc4d2;
+  --color-outline-variant: #494551;
+}
+
+@layer base {
+  body {
+    @apply bg-black text-on-surface font-sans antialiased;
+    background-image:
+      radial-gradient(circle at 50% -20%, rgba(47, 243, 200, 0.08), transparent 40%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .glass-plate {
+    @apply bg-white/3 backdrop-blur-xl border border-white/10;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 20px rgba(47, 243, 200, 0.4);
+  }
+
+  .mint-gradient-text {
+    @apply bg-linear-to-br from-mint to-solana-green bg-clip-text text-transparent;
+  }
+}

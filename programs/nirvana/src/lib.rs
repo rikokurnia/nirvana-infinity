@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-declare_id!("BpHiA8c1NtStZiu7romfc3hEG7nzCoLYdPUm7XmdVuZS");
+declare_id!("FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc");
 
 #[program]
 pub mod nirvana_protocol {
@@ -10,10 +10,12 @@ pub mod nirvana_protocol {
     pub fn create_stream(
         ctx: Context<CreateStream>,
         base_amount: u64,
+        cliff_amount: u64,
         milestone_amount: u64,
         start_time: i64,
         end_time: i64,
         cliff_time: i64,
+        arbiter: Option<Pubkey>,
     ) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
         let now = Clock::get()?.unix_timestamp;
@@ -23,6 +25,8 @@ pub mod nirvana_protocol {
         require!(start_time >= now, NirvanaError::StartTimeInPast);
 
         let total = base_amount
+            .checked_add(cliff_amount)
+            .ok_or(NirvanaError::MathOverflow)?
             .checked_add(milestone_amount)
             .ok_or(NirvanaError::MathOverflow)?;
 
@@ -31,7 +35,9 @@ pub mod nirvana_protocol {
         state.authority = ctx.accounts.authority.key();
         state.recipient = ctx.accounts.recipient.key();
         state.token_mint = ctx.accounts.token_mint.key();
+        state.arbiter = arbiter.unwrap_or_default();
         state.base_amount = base_amount;
+        state.cliff_amount = cliff_amount;
         state.milestone_amount = milestone_amount;
         state.claimed_amount = 0;
         state.start_time = start_time;
@@ -64,6 +70,12 @@ pub mod nirvana_protocol {
     pub fn trigger_milestone(ctx: Context<TriggerMilestone>) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
         let now = Clock::get()?.unix_timestamp;
+
+        // Either the authority or a designated arbiter may confirm the milestone.
+        let signer = ctx.accounts.triggerer.key();
+        let is_authority = signer == state.authority;
+        let is_arbiter = state.arbiter != Pubkey::default() && signer == state.arbiter;
+        require!(is_authority || is_arbiter, NirvanaError::Unauthorized);
 
         require!(!state.is_cancelled, NirvanaError::StreamCancelled);
         require!(!state.milestone_achieved, NirvanaError::MilestoneAlreadyAchieved);
@@ -113,7 +125,10 @@ pub mod nirvana_protocol {
             0
         };
 
+        // cliff_time has been reached (checked above), so the cliff lump is unlocked.
         let unlocked = linear
+            .checked_add(state.cliff_amount)
+            .ok_or(NirvanaError::MathOverflow)?
             .checked_add(milestone)
             .ok_or(NirvanaError::MathOverflow)?;
 
@@ -185,7 +200,7 @@ pub mod nirvana_protocol {
                     .ok_or(NirvanaError::MathOverflow)?
             };
 
-            linear_unlocked = if total_duration > 0 {
+            let linear = if total_duration > 0 {
                 (state.base_amount as u128)
                     .checked_mul(elapsed as u128)
                     .ok_or(NirvanaError::MathOverflow)?
@@ -194,6 +209,11 @@ pub mod nirvana_protocol {
             } else {
                 state.base_amount
             };
+
+            // past cliff: the cliff lump is unlocked for the recipient too.
+            linear_unlocked = linear
+                .checked_add(state.cliff_amount)
+                .ok_or(NirvanaError::MathOverflow)?;
 
             milestone_unlocked = if state.milestone_achieved {
                 state.milestone_amount
@@ -278,6 +298,54 @@ pub mod nirvana_protocol {
 
         Ok(())
     }
+
+    /// Authority adds more linearly-vesting base funds and/or extends the end
+    /// time of an active stream. At least one of the two must be a real change.
+    pub fn top_up(
+        ctx: Context<TopUp>,
+        additional_base: u64,
+        new_end_time: Option<i64>,
+    ) -> Result<()> {
+        let state = &mut ctx.accounts.distribution_state;
+        let now = Clock::get()?.unix_timestamp;
+
+        require!(!state.is_cancelled, NirvanaError::StreamCancelled);
+        require!(now < state.end_time, NirvanaError::FullyVested);
+        require!(
+            additional_base > 0 || new_end_time.is_some(),
+            NirvanaError::NothingToTopUp
+        );
+
+        if let Some(end) = new_end_time {
+            require!(end > state.end_time, NirvanaError::InvalidExtension);
+            state.end_time = end;
+        }
+
+        if additional_base > 0 {
+            state.base_amount = state
+                .base_amount
+                .checked_add(additional_base)
+                .ok_or(NirvanaError::MathOverflow)?;
+
+            let cpi_accounts = Transfer {
+                from: ctx.accounts.authority_token_account.to_account_info(),
+                to: ctx.accounts.token_vault.to_account_info(),
+                authority: ctx.accounts.authority.to_account_info(),
+            };
+            token::transfer(
+                CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
+                additional_base,
+            )?;
+        }
+
+        emit!(ToppedUp {
+            authority: state.authority,
+            additional_base,
+            new_end_time: state.end_time,
+        });
+
+        Ok(())
+    }
 }
 
 // ---------------- ACCOUNTS ----------------
@@ -353,11 +421,41 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct TriggerMilestone<'info> {
+    /// Authority or arbiter; verified in the handler against stored keys.
+    pub triggerer: Signer<'info>,
+
+    #[account(mut)]
+    pub distribution_state: Box<Account<'info, DistributionState>>,
+}
+
+#[derive(Accounts)]
+pub struct TopUp<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
-    #[account(mut, has_one = authority)]
+    #[account(
+        mut,
+        has_one = authority,
+        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref()],
+        bump = distribution_state.bump
+    )]
     pub distribution_state: Box<Account<'info, DistributionState>>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", distribution_state.key().as_ref()],
+        bump
+    )]
+    pub token_vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        constraint = authority_token_account.owner == authority.key(),
+        constraint = authority_token_account.mint == distribution_state.token_mint
+    )]
+    pub authority_token_account: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -401,7 +499,12 @@ pub struct DistributionState {
     pub authority: Pubkey,
     pub recipient: Pubkey,
     pub token_mint: Pubkey,
+    /// Optional third party allowed to trigger the milestone alongside the
+    /// authority. `Pubkey::default()` (all zeroes) means "no arbiter".
+    pub arbiter: Pubkey,
     pub base_amount: u64,
+    /// Lump sum that unlocks in full once `cliff_time` is reached.
+    pub cliff_amount: u64,
     pub milestone_amount: u64,
     pub claimed_amount: u64,
     pub start_time: i64,
@@ -437,6 +540,13 @@ pub struct MilestoneTriggered {
     pub recipient: Pubkey,
 }
 
+#[event]
+pub struct ToppedUp {
+    pub authority: Pubkey,
+    pub additional_base: u64,
+    pub new_end_time: i64,
+}
+
 // ---------------- ERRORS ----------------
 
 #[error_code]
@@ -467,4 +577,8 @@ pub enum NirvanaError {
     StreamExpired,
     #[msg("Math overflow.")]
     MathOverflow,
+    #[msg("Nothing to top up.")]
+    NothingToTopUp,
+    #[msg("New end time must be later than the current one.")]
+    InvalidExtension,
 }

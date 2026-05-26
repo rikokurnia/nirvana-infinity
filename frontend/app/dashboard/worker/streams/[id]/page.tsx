@@ -1,0 +1,306 @@
+"use client";
+
+import { useState } from "react";
+import { useStreams } from "@/hooks/use-streams";
+import { useParams, useRouter } from "next/navigation";
+import { motion } from "motion/react";
+import {
+  ChevronRight,
+  ArrowLeft,
+  Clock,
+  Target,
+  Wallet,
+  Shield,
+  Calendar,
+  User,
+} from "lucide-react";
+import {
+  formatTokenAmount,
+  calculateClaimable,
+  calculateLinearUnlocked,
+  calculateTotalUnlocked,
+  formatPercentage,
+  formatAddress,
+  formatDate,
+} from "@/lib/utils";
+
+export default function WorkerStreamDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const router = useRouter();
+  const { getStream, getClaimable, handleWithdraw, loading } = useStreams();
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
+  const onWithdraw = async (streamId: string) => {
+    setWithdrawError(null);
+    try {
+      await handleWithdraw(streamId);
+    } catch (err) {
+      setWithdrawError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const stream = getStream(id);
+
+  if (!stream) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <p className="font-mono text-sm text-on-surface-variant">Stream not found</p>
+        <button
+          onClick={() => router.push("/dashboard/worker/streams")}
+          className="mt-4 text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors flex items-center gap-2"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  const totalAmount = stream.baseAmount + stream.milestoneAmount + stream.cliffAmount;
+  const linearUnlocked = calculateLinearUnlocked(stream.startTime, stream.endTime, stream.baseAmount);
+  const totalUnlocked = calculateTotalUnlocked(stream);
+  const claimable = calculateClaimable(stream);
+  const linearPct = formatPercentage(linearUnlocked, stream.baseAmount);
+  const totalPct = formatPercentage(totalUnlocked, totalAmount);
+  const claimedPct = formatPercentage(stream.claimedAmount, totalAmount);
+
+  return (
+    <div>
+      <button
+        onClick={() => router.push("/dashboard/worker/streams")}
+        className="flex items-center gap-2 font-mono text-xs text-on-surface-variant hover:text-mint transition-colors mb-6 uppercase tracking-widest"
+      >
+        <ArrowLeft className="w-3 h-3" />
+        Back
+      </button>
+
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="font-headline text-3xl font-bold tracking-tight">
+            {stream.tokenSymbol} Stream
+          </h1>
+          <span className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
+            {stream.id}
+          </span>
+        </div>
+        <p className="font-mono text-xs text-on-surface-variant mt-1">
+          {stream.isCancelled ? (
+            <span className="text-red-400">Cancelled</span>
+          ) : (
+            <span className="text-mint">Active</span>
+          )}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="glass-plate rounded-lg p-6 border-mint/20 bg-mint/[0.02]"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="w-4 h-4 text-mint" />
+            <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Claimable Now</span>
+          </div>
+          <p className="font-headline text-2xl font-bold text-mint tracking-tight">
+            {formatTokenAmount(claimable)}
+          </p>
+          <p className="font-mono text-[10px] text-on-surface-variant/50 mt-1">{stream.tokenSymbol}</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="glass-plate rounded-lg p-6"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="w-4 h-4 text-mint" />
+            <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Total Earned</span>
+          </div>
+          <p className="font-headline text-2xl font-bold text-on-surface tracking-tight">
+            {formatTokenAmount(stream.claimedAmount)}
+          </p>
+          <p className="font-mono text-[10px] text-on-surface-variant/50 mt-1">
+            {claimedPct.toFixed(1)}% of total
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="glass-plate rounded-lg p-6"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Target className="w-4 h-4 text-mint" />
+            <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Total Allocation</span>
+          </div>
+          <p className="font-headline text-2xl font-bold text-on-surface tracking-tight">
+            {formatTokenAmount(totalAmount)}
+          </p>
+          <p className="font-mono text-[10px] text-on-surface-variant/50 mt-1">Linear + Milestone + Cliff</p>
+        </motion.div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+        className="glass-plate rounded-lg p-6 mb-8 border-mint/10"
+      >
+        <h3 className="font-headline text-base font-bold tracking-tight mb-4">Your Split</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between py-2 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-sm bg-linear-to-r from-mint to-solana-green" />
+              <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Linear</span>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.baseAmount)}</p>
+              <p className="font-mono text-[10px] text-on-surface-variant/50">paid over time</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-2 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-sm bg-mint" />
+              <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Milestone</span>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.milestoneAmount)}</p>
+              <p className={`font-mono text-[10px] ${stream.milestoneAchieved ? "text-mint" : "text-on-surface-variant/50"}`}>
+                {stream.milestoneAchieved ? "unlocked" : "locked until KPI"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-sm bg-solana-green" />
+              <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Cliff Buffer</span>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.cliffAmount)}</p>
+              <p className={`font-mono text-[10px] ${Date.now() / 1000 >= stream.cliffTime ? "text-mint" : "text-on-surface-variant/50"}`}>
+                {Date.now() / 1000 >= stream.cliffTime ? "unlocked" : "locked until " + new Date(stream.cliffTime * 1000).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="glass-plate rounded-lg p-8 mb-8"
+      >
+        <h3 className="font-headline text-lg font-bold tracking-tight mb-6">Dual-Layer Progress</h3>
+
+        <div className="space-y-6">
+          <div>
+            <div className="flex justify-between mb-2">
+              <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest flex items-center gap-2">
+                <Clock className="w-4 h-4" /> Linear Base
+              </span>
+              <span className="font-mono text-xs text-mint font-bold">{linearPct.toFixed(1)}%</span>
+            </div>
+            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${linearPct}%` }}
+                transition={{ duration: 1, delay: 0.5 }}
+                className="h-full bg-linear-to-r from-mint to-solana-green shadow-[0_0_10px_rgba(47,243,200,0.3)]"
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(stream.baseAmount)} total</span>
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(linearUnlocked)} unlocked</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-2">
+              <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest flex items-center gap-2">
+                <Target className="w-4 h-4" /> Milestone Bonus
+              </span>
+              <span className="font-mono text-xs text-mint font-bold">
+                {stream.milestoneAchieved ? "ACHIEVED" : "LOCKED"}
+              </span>
+            </div>
+            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: stream.milestoneAchieved ? "100%" : "0%" }}
+                transition={{ duration: 1, delay: 0.6 }}
+                className={`h-full ${stream.milestoneAchieved ? "bg-mint shadow-[0_0_10px_rgba(47,243,200,0.5)]" : "bg-white/10"}`}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(stream.milestoneAmount)} bonus</span>
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{stream.milestoneAchieved ? "Ready to claim" : "Awaiting KPI"}</span>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5">
+            <div className="flex justify-between mb-2">
+              <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Total Progress</span>
+              <span className="font-mono text-xs text-mint font-bold">{totalPct.toFixed(1)}%</span>
+            </div>
+            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${totalPct}%` }}
+                transition={{ duration: 1, delay: 0.7 }}
+                className="h-full bg-linear-to-r from-mint/50 to-solana-green/50"
+              />
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="glass-plate rounded-lg p-8 mb-8"
+      >
+        <h3 className="font-headline text-lg font-bold tracking-tight mb-6">Stream Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <DetailRow icon={User} label="From (Authority)" value={formatAddress(stream.authority)} />
+          <DetailRow icon={Calendar} label="Start" value={formatDate(stream.startTime)} />
+          <DetailRow icon={Calendar} label="End" value={formatDate(stream.endTime)} />
+          <DetailRow icon={Clock} label="Cliff" value={formatDate(stream.cliffTime)} />
+        </div>
+      </motion.div>
+
+      {withdrawError && (
+        <p className="mb-4 font-mono text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 break-words">
+          {withdrawError}
+        </p>
+      )}
+
+      <button
+        onClick={() => onWithdraw(stream.id)}
+        disabled={loading || claimable === BigInt(0) || stream.isCancelled}
+        className="w-full bg-mint text-black font-mono text-sm font-bold px-8 py-4 rounded-sm hover:brightness-110 active:scale-95 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(47,243,200,0.2)]"
+      >
+        {loading ? "Processing..." : `Withdraw ${formatTokenAmount(claimable)} ${stream.tokenSymbol}`}
+        {!loading && <ChevronRight className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
+
+function DetailRow({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-mint"><Icon className="w-4 h-4" /></span>
+      <div>
+        <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">{label}</p>
+        <p className="font-mono text-xs text-on-surface mt-0.5">{value}</p>
+      </div>
+    </div>
+  );
+}
