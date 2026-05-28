@@ -18,6 +18,7 @@ import {
   type StreamPreset,
 } from "@/lib/stream-calculator";
 import { FaucetButton } from "@/app/components/faucet-button";
+import { useAuth } from "@/app/providers/privy-provider";
 
 // mUSDC = devnet mock USDC minted by the in-app faucet. Default token so the
 // founder→worker flow works end-to-end without wrapping SOL. Falls back to the
@@ -45,6 +46,7 @@ function newRow(): RecipientRow {
 
 export default function CreateStreamPage() {
   const { handleCreateStream } = useStreams();
+  const { user } = useAuth();
   const router = useRouter();
   const presets = getPresets();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -56,6 +58,9 @@ export default function CreateStreamPage() {
   const [selectedPreset, setSelectedPreset] = useState<StreamPreset>(presets[0]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  // Optional cliff date. Empty = let the preset's default cliff timing apply
+  // (startTime + 25% of duration). Set = honor the user's pick verbatim.
+  const [cliffDate, setCliffDate] = useState("");
   const [recipients, setRecipients] = useState<RecipientRow[]>([newRow()]);
 
   const updateRecipient = (id: string, field: "address" | "amount", value: string) => {
@@ -88,12 +93,23 @@ export default function CreateStreamPage() {
     return Math.max(raw, now + 120);
   };
 
+  // Resolve the cliff timestamp: user-picked date wins if it's a valid value in
+  // [start, end]; otherwise fall back to the preset default (25% into stream).
+  const resolveCliffTime = (start: number, end: number, defaultCliff: number) => {
+    if (!cliffDate) return defaultCliff;
+    const picked = Math.floor(new Date(cliffDate).getTime() / 1000);
+    if (Number.isNaN(picked)) return defaultCliff;
+    // Program requires cliff >= start && cliff <= end. Clamp silently.
+    return Math.min(Math.max(picked, start), end);
+  };
+
   const getSplit = (amount: string) => {
     if (!amount || !startDate || !endDate) return null;
     const start = effectiveStart();
     const end = Math.floor(new Date(endDate).getTime() / 1000);
     if (start >= end) return null;
-    return calculateStreamSplit(parseFloat(amount), start, end, selectedPreset);
+    const split = calculateStreamSplit(parseFloat(amount), start, end, selectedPreset);
+    return { ...split, cliffTime: resolveCliffTime(start, end, split.cliffTime) };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,7 +126,7 @@ export default function CreateStreamPage() {
       for (const r of validRecipients) {
         const split = getSplit(r.amount);
         if (!split) continue;
-        await handleCreateStream({
+        const signature = await handleCreateStream({
           recipient: r.address.trim(),
           tokenMint,
           tokenSymbol,
@@ -121,6 +137,23 @@ export default function CreateStreamPage() {
           endTime: end,
           cliffTime: split.cliffTime,
         });
+        // Founder history entry. Stored as UI float amount (no decimals math
+        // needed) since this is a display log, not a settlement record.
+        try {
+          const key = `nirvana:founder-history:${user?.wallet?.address ?? "unknown"}`;
+          const prev = JSON.parse(localStorage.getItem(key) ?? "[]");
+          const entry = {
+            type: "create" as const,
+            signature,
+            recipient: r.address.trim(),
+            amount: r.amount,
+            tokenSymbol,
+            timestamp: Date.now(),
+          };
+          localStorage.setItem(key, JSON.stringify([entry, ...prev].slice(0, 200)));
+        } catch {
+          // localStorage errors shouldn't block the flow.
+        }
       }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -156,7 +189,7 @@ export default function CreateStreamPage() {
                 <Sparkles className="w-4 h-4 text-mint" />
                 Stream Settings
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
                   <label className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest block mb-2">Token</label>
                   <select
@@ -202,6 +235,19 @@ export default function CreateStreamPage() {
                     onChange={(e) => setEndDate(e.target.value)}
                     className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest block mb-2">
+                    Cliff <span className="text-on-surface-variant/40">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={cliffDate}
+                    onChange={(e) => setCliffDate(e.target.value)}
+                    min={startDate || undefined}
+                    max={endDate || undefined}
+                    className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
                   />
                 </div>
               </div>

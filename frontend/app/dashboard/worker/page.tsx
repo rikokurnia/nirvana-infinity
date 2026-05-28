@@ -44,10 +44,10 @@ export default function WorkerPage() {
         <StatCard
           icon={ArrowUpRight}
           label="Claimable Now"
-          value={formatTokenAmount(totalClaimable)}
+          value={formatTokenAmount(totalClaimable, myStreams[0]?.tokenDecimals ?? 9)}
           highlight
         />
-        <StatCard icon={Wallet} label="Total Earned" value={formatTokenAmount(totalClaimed)} />
+        <StatCard icon={Wallet} label="Total Earned" value={formatTokenAmount(totalClaimed, myStreams[0]?.tokenDecimals ?? 9)} />
         <StatCard icon={Target} label="Pending Milestones" value={pendingMilestones.toString()} />
       </div>
 
@@ -75,24 +75,24 @@ export default function WorkerPage() {
                     <div>
                       <div className="flex items-center gap-3 mb-1">
                         <span className="font-headline text-lg font-bold text-on-surface">
-                          {formatTokenAmount(totalAmount)} {stream.tokenSymbol}
+                          {formatTokenAmount(totalAmount, stream.tokenDecimals)} {stream.tokenSymbol}
                         </span>
                         <span className={`font-mono text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-widest ${stream.isCancelled ? "bg-red-400/10 text-red-400" : "bg-mint/10 text-mint"}`}>
                           {stream.isCancelled ? "Cancelled" : "Active"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
-                        <span>{formatTokenAmount(stream.baseAmount)} linear</span>
+                        <span>{formatTokenAmount(stream.baseAmount, stream.tokenDecimals)} linear</span>
                         <span className="text-on-surface-variant/20">·</span>
-                        <span>{formatTokenAmount(stream.milestoneAmount)} milestone</span>
+                        <span>{formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} milestone</span>
                         <span className="text-on-surface-variant/20">·</span>
-                        <span>{formatTokenAmount(stream.cliffAmount)} cliff</span>
+                        <span>{formatTokenAmount(stream.cliffAmount, stream.tokenDecimals)} cliff</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       {claimable > BigInt(0) && (
                         <span className="font-mono text-xs text-mint font-bold block">
-                          {formatTokenAmount(claimable)} ready
+                          {formatTokenAmount(claimable, stream.tokenDecimals)} ready
                         </span>
                       )}
                       <span className="font-mono text-[10px] text-on-surface-variant/50 mt-0.5 block">

@@ -51,18 +51,18 @@ export default function WorkerStreamsPage() {
                     <div>
                       <div className="flex items-center gap-3 mb-1">
                         <span className="font-headline text-lg font-bold text-on-surface">
-                          {formatTokenAmount(totalAmount)} {stream.tokenSymbol}
+                          {formatTokenAmount(totalAmount, stream.tokenDecimals)} {stream.tokenSymbol}
                         </span>
                         <span className={stream.isCancelled ? "font-mono text-[10px] text-red-400 uppercase tracking-widest" : "font-mono text-[10px] text-mint uppercase tracking-widest"}>
                           {stream.isCancelled ? "Cancelled" : `${totalPct.toFixed(1)}% unlocked`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
-                        <span>{formatTokenAmount(stream.baseAmount)} linear</span>
+                        <span>{formatTokenAmount(stream.baseAmount, stream.tokenDecimals)} linear</span>
                         <span className="text-on-surface-variant/20">·</span>
-                        <span>{formatTokenAmount(stream.milestoneAmount)} milestone</span>
+                        <span>{formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} milestone</span>
                         <span className="text-on-surface-variant/20">·</span>
-                        <span>{formatTokenAmount(stream.cliffAmount)} cliff</span>
+                        <span>{formatTokenAmount(stream.cliffAmount, stream.tokenDecimals)} cliff</span>
                       </div>
                       <p className="font-mono text-[10px] text-on-surface-variant/40 mt-1">
                         {stream.id} — {formatDate(stream.startTime)} → {formatDate(stream.endTime)}
@@ -71,7 +71,7 @@ export default function WorkerStreamsPage() {
                     <div className="flex items-center gap-3 shrink-0">
                       {claimable > BigInt(0) && (
                         <span className="font-mono text-xs text-mint font-bold px-3 py-1 bg-mint/10 rounded-sm uppercase">
-                          {formatTokenAmount(claimable)} ready
+                          {formatTokenAmount(claimable, stream.tokenDecimals)} ready
                         </span>
                       )}
                       <ChevronRight className="w-4 h-4 text-mint/50 group-hover:text-mint transition-colors" />

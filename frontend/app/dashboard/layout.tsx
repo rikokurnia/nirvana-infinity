@@ -15,6 +15,7 @@ import {
   LogOut,
   Copy,
   Check,
+  History as HistoryIcon,
 } from "lucide-react";
 import { formatAddress } from "@/lib/utils";
 import { useState } from "react";
@@ -153,6 +154,7 @@ function Sidebar({
     { label: "Overview", icon: LayoutDashboard, path: "/dashboard/founder" },
     { label: "Create Stream", icon: PlusCircle, path: "/dashboard/founder/create" },
     { label: "My Streams", icon: List, path: "/dashboard/founder/streams" },
+    { label: "History", icon: HistoryIcon, path: "/dashboard/founder/history" },
     { label: "Customize Presets", icon: Settings, path: "/dashboard/founder/presets" },
     { label: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },
   ];
@@ -160,6 +162,7 @@ function Sidebar({
   const workerMenu = [
     { label: "Overview", icon: LayoutDashboard, path: "/dashboard/worker" },
     { label: "My Streams", icon: List, path: "/dashboard/worker/streams" },
+    { label: "History", icon: HistoryIcon, path: "/dashboard/worker/history" },
     { label: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },
   ];
 

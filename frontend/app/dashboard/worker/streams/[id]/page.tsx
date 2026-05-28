@@ -28,15 +28,41 @@ export default function WorkerStreamDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
-  const { getStream, getClaimable, handleWithdraw, loading } = useStreams();
+  const { getStream, getClaimable, handleWithdraw } = useStreams();
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  // Local flag — shared `loading` from useStreams stays true during background
+  // RPC refetches, which would freeze the button forever ("PROCESSING…" bug).
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [lastSignature, setLastSignature] = useState<string | null>(null);
 
   const onWithdraw = async (streamId: string) => {
     setWithdrawError(null);
+    setIsWithdrawing(true);
     try {
-      await handleWithdraw(streamId);
+      const signature = await handleWithdraw(streamId);
+      setLastSignature(signature);
+      // Persist for the History page (per-worker-wallet keyed in that page).
+      try {
+        const stream = getStream(streamId);
+        const entry = {
+          signature,
+          streamId,
+          recipient: stream?.recipient ?? "",
+          amount: stream ? calculateClaimable(stream).toString() : "0",
+          tokenSymbol: stream?.tokenSymbol ?? "",
+          tokenDecimals: stream?.tokenDecimals ?? 9,
+          timestamp: Date.now(),
+        };
+        const key = `nirvana:withdraw-history:${stream?.recipient ?? "unknown"}`;
+        const prev = JSON.parse(localStorage.getItem(key) ?? "[]");
+        localStorage.setItem(key, JSON.stringify([entry, ...prev].slice(0, 100)));
+      } catch {
+        // localStorage failures shouldn't block UI.
+      }
     } catch (err) {
       setWithdrawError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -105,7 +131,7 @@ export default function WorkerStreamDetailPage() {
             <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Claimable Now</span>
           </div>
           <p className="font-headline text-2xl font-bold text-mint tracking-tight">
-            {formatTokenAmount(claimable)}
+            {formatTokenAmount(claimable, stream.tokenDecimals)}
           </p>
           <p className="font-mono text-[10px] text-on-surface-variant/50 mt-1">{stream.tokenSymbol}</p>
         </motion.div>
@@ -121,7 +147,7 @@ export default function WorkerStreamDetailPage() {
             <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Total Earned</span>
           </div>
           <p className="font-headline text-2xl font-bold text-on-surface tracking-tight">
-            {formatTokenAmount(stream.claimedAmount)}
+            {formatTokenAmount(stream.claimedAmount, stream.tokenDecimals)}
           </p>
           <p className="font-mono text-[10px] text-on-surface-variant/50 mt-1">
             {claimedPct.toFixed(1)}% of total
@@ -139,7 +165,7 @@ export default function WorkerStreamDetailPage() {
             <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Total Allocation</span>
           </div>
           <p className="font-headline text-2xl font-bold text-on-surface tracking-tight">
-            {formatTokenAmount(totalAmount)}
+            {formatTokenAmount(totalAmount, stream.tokenDecimals)}
           </p>
           <p className="font-mono text-[10px] text-on-surface-variant/50 mt-1">Linear + Milestone + Cliff</p>
         </motion.div>
@@ -159,7 +185,7 @@ export default function WorkerStreamDetailPage() {
               <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Linear</span>
             </div>
             <div className="text-right">
-              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.baseAmount)}</p>
+              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.baseAmount, stream.tokenDecimals)}</p>
               <p className="font-mono text-[10px] text-on-surface-variant/50">paid over time</p>
             </div>
           </div>
@@ -169,7 +195,7 @@ export default function WorkerStreamDetailPage() {
               <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Milestone</span>
             </div>
             <div className="text-right">
-              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.milestoneAmount)}</p>
+              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)}</p>
               <p className={`font-mono text-[10px] ${stream.milestoneAchieved ? "text-mint" : "text-on-surface-variant/50"}`}>
                 {stream.milestoneAchieved ? "unlocked" : "locked until KPI"}
               </p>
@@ -181,7 +207,7 @@ export default function WorkerStreamDetailPage() {
               <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Cliff Buffer</span>
             </div>
             <div className="text-right">
-              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.cliffAmount)}</p>
+              <p className="font-mono text-sm text-on-surface font-bold">{formatTokenAmount(stream.cliffAmount, stream.tokenDecimals)}</p>
               <p className={`font-mono text-[10px] ${Date.now() / 1000 >= stream.cliffTime ? "text-mint" : "text-on-surface-variant/50"}`}>
                 {Date.now() / 1000 >= stream.cliffTime ? "unlocked" : "locked until " + new Date(stream.cliffTime * 1000).toLocaleDateString()}
               </p>
@@ -215,8 +241,8 @@ export default function WorkerStreamDetailPage() {
               />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(stream.baseAmount)} total</span>
-              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(linearUnlocked)} unlocked</span>
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(stream.baseAmount, stream.tokenDecimals)} total</span>
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(linearUnlocked, stream.tokenDecimals)} unlocked</span>
             </div>
           </div>
 
@@ -238,7 +264,7 @@ export default function WorkerStreamDetailPage() {
               />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(stream.milestoneAmount)} bonus</span>
+              <span className="font-mono text-[10px] text-on-surface-variant/50">{formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} bonus</span>
               <span className="font-mono text-[10px] text-on-surface-variant/50">{stream.milestoneAchieved ? "Ready to claim" : "Awaiting KPI"}</span>
             </div>
           </div>
@@ -281,14 +307,70 @@ export default function WorkerStreamDetailPage() {
         </p>
       )}
 
-      <button
-        onClick={() => onWithdraw(stream.id)}
-        disabled={loading || claimable === BigInt(0) || stream.isCancelled}
-        className="w-full bg-mint text-black font-mono text-sm font-bold px-8 py-4 rounded-sm hover:brightness-110 active:scale-95 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(47,243,200,0.2)]"
-      >
-        {loading ? "Processing..." : `Withdraw ${formatTokenAmount(claimable)} ${stream.tokenSymbol}`}
-        {!loading && <ChevronRight className="w-4 h-4" />}
-      </button>
+      {lastSignature && (
+        <a
+          href={`https://explorer.solana.com/tx/${lastSignature}?cluster=devnet`}
+          target="_blank"
+          rel="noreferrer"
+          className="mb-4 block font-mono text-xs text-mint bg-mint/5 border border-mint/30 rounded-sm px-4 py-3 hover:bg-mint/10 transition-colors break-all"
+        >
+          ✓ Withdraw confirmed · {lastSignature.slice(0, 16)}… (view on Solana Explorer)
+        </a>
+      )}
+
+      {(() => {
+        const nowSec = Date.now() / 1000;
+        const isCancelled = stream.isCancelled;
+        const preCliff = nowSec < stream.cliffTime;
+        const fullyClaimed = totalUnlocked === stream.claimedAmount + stream.cliffAmount * BigInt(0) && !preCliff && claimable === BigInt(0) && stream.claimedAmount > BigInt(0);
+        const nothingYet = claimable === BigInt(0) && stream.claimedAmount === BigInt(0) && !preCliff;
+        const dust = claimable === BigInt(0) && stream.claimedAmount > BigInt(0) && !preCliff && !stream.milestoneAchieved;
+
+        let title: string;
+        let subtitle: string | null = null;
+        let disabled = isWithdrawing || claimable === BigInt(0) || isCancelled;
+
+        if (isWithdrawing) {
+          title = "Processing…";
+        } else if (isCancelled) {
+          title = "Stream cancelled";
+          subtitle = "No further withdrawals allowed.";
+        } else if (preCliff) {
+          title = "Locked until cliff";
+          subtitle = `Unlocks ${formatDate(stream.cliffTime)} — cliff lump + linear vest become claimable then.`;
+        } else if (claimable > BigInt(0)) {
+          title = `Withdraw ${formatTokenAmount(claimable, stream.tokenDecimals)} ${stream.tokenSymbol}`;
+        } else if (dust) {
+          title = `0.00 ${stream.tokenSymbol} ready`;
+          subtitle = stream.milestoneAchieved
+            ? "All unlocked tokens already claimed. Stream complete."
+            : `Linear is still vesting — next chunk available as time elapses. Milestone bonus (${formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} ${stream.tokenSymbol}) unlocks when KPI is hit.`;
+        } else if (nothingYet) {
+          title = "Nothing claimable yet";
+          subtitle = "Linear vest is still ramping up — check back shortly.";
+        } else {
+          title = `Withdraw 0.00 ${stream.tokenSymbol}`;
+          subtitle = "Nothing claimable right now.";
+        }
+
+        return (
+          <button
+            onClick={() => onWithdraw(stream.id)}
+            disabled={disabled}
+            className="w-full bg-mint text-black font-mono font-bold px-8 py-4 rounded-sm hover:brightness-110 active:scale-95 transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(47,243,200,0.2)]"
+          >
+            <span className="flex items-center gap-2 text-sm uppercase">
+              {title}
+              {!isWithdrawing && claimable > BigInt(0) && <ChevronRight className="w-4 h-4" />}
+            </span>
+            {subtitle && (
+              <span className="font-mono text-[10px] text-black/60 normal-case font-medium text-center leading-tight max-w-xl">
+                {subtitle}
+              </span>
+            )}
+          </button>
+        );
+      })()}
     </div>
   );
 }

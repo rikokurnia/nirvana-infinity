@@ -31,8 +31,39 @@ interface CreateStreamInput {
 }
 
 function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
+  const raw = err instanceof Error ? err.message : String(err);
+  // Friendly mapping for common on-chain failures. Match against raw logs since
+  // anchor wraps the SystemProgram error 0x0 (Allocate already-in-use) with no
+  // dedicated code we can pattern-match against directly.
+  if (
+    raw.includes("Allocate: account") &&
+    raw.includes("already in use")
+  ) {
+    return (
+      "A previous stream's vault to this recipient still exists on-chain. " +
+      "Cancel the existing stream first (this releases the vault), or use a " +
+      "different recipient address."
+    );
+  }
+  if (raw.includes("StartTimeInPast")) {
+    return "Start date is in the past. Pick today or later.";
+  }
+  if (raw.includes("InvalidTimeRange")) {
+    return "End date must be after the start date.";
+  }
+  if (raw.includes("InvalidCliff")) {
+    return "Cliff date must be between the start and end dates.";
+  }
+  if (raw.includes("AlreadyCancelled")) {
+    return "This stream is already cancelled.";
+  }
+  if (raw.includes("FullyVested")) {
+    return "Stream has fully vested — nothing left to cancel.";
+  }
+  if (raw.includes("User rejected") || raw.includes("WalletSignTransactionError")) {
+    return "You rejected the wallet signature.";
+  }
+  return raw;
 }
 
 export function useStreams() {
@@ -109,7 +140,7 @@ export function useStreams() {
 
   /** Throws on failure so callers can surface the message; also sets `error`. */
   const handleCreateStream = useCallback(
-    async (params: CreateStreamInput) => {
+    async (params: CreateStreamInput): Promise<string> => {
       if (!program) throw new Error("Connect your wallet first.");
       setLoading(true);
       setError(null);
@@ -118,7 +149,7 @@ export function useStreams() {
         const { decimals } = await getMint(program.provider.connection, mint);
         const scale = (v: number) =>
           new BN(Math.round(v * 10 ** decimals).toString());
-        await createStreamOnChain(program, {
+        const signature = await createStreamOnChain(program, {
           recipient: new PublicKey(params.recipient),
           tokenMint: mint,
           baseAmount: scale(params.baseAmount),
@@ -129,6 +160,7 @@ export function useStreams() {
           cliffTime: params.cliffTime,
         });
         await refresh();
+        return signature;
       } catch (err) {
         setError(toErrorMessage(err));
         throw err;
@@ -140,19 +172,20 @@ export function useStreams() {
   );
 
   const handleWithdraw = useCallback(
-    async (streamId: string) => {
+    async (streamId: string): Promise<string> => {
       if (!program) throw new Error("Connect your wallet first.");
       const stream = streams.find((s) => s.id === streamId);
       if (!stream) throw new Error("Stream not found.");
       setLoading(true);
       setError(null);
       try {
-        await withdrawOnChain(
+        const signature = await withdrawOnChain(
           program,
           new PublicKey(stream.id),
           new PublicKey(stream.tokenMint)
         );
         await refresh();
+        return signature;
       } catch (err) {
         setError(toErrorMessage(err));
         throw err;
@@ -164,20 +197,21 @@ export function useStreams() {
   );
 
   const handleCancel = useCallback(
-    async (streamId: string) => {
+    async (streamId: string): Promise<string> => {
       if (!program) throw new Error("Connect your wallet first.");
       const stream = streams.find((s) => s.id === streamId);
       if (!stream) throw new Error("Stream not found.");
       setLoading(true);
       setError(null);
       try {
-        await cancelOnChain(
+        const signature = await cancelOnChain(
           program,
           new PublicKey(stream.id),
           new PublicKey(stream.recipient),
           new PublicKey(stream.tokenMint)
         );
         await refresh();
+        return signature;
       } catch (err) {
         setError(toErrorMessage(err));
         throw err;

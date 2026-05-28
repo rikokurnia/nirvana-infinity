@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, Transfer};
 
 declare_id!("FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc");
 
@@ -291,6 +291,28 @@ pub mod nirvana_protocol {
                 creator_share,
             )?;
         }
+
+        // Close the vault SPL TokenAccount so the same (authority, recipient)
+        // pair can have a fresh stream later. Without this, the vault PDA sits
+        // empty on-chain forever and a new `create_stream` to the same recipient
+        // fails with "account already in use".
+        let close_seeds = &[
+            b"state",
+            state.authority.as_ref(),
+            state.recipient.as_ref(),
+            &[bump],
+        ];
+        let close_signer = &[&close_seeds[..]];
+
+        token::close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.token_vault.to_account_info(),
+                destination: ctx.accounts.authority.to_account_info(),
+                authority: state.to_account_info(),
+            },
+            close_signer,
+        ))?;
 
         emit!(Cancelled {
             authority: state.authority,

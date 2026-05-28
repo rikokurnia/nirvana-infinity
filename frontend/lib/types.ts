@@ -4,6 +4,8 @@ export interface DistributionState {
   recipient: string;
   tokenMint: string;
   tokenSymbol: string;
+  /** Decimals of the token mint, needed to format on-chain base units to UI floats. */
+  tokenDecimals: number;
   baseAmount: bigint;
   milestoneAmount: bigint;
   cliffAmount: bigint;

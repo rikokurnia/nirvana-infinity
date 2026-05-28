@@ -6,6 +6,7 @@ import {
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
+  getMint,
 } from "@solana/spl-token";
 import {
   Connection,
@@ -252,7 +253,7 @@ const TOKEN_SYMBOLS: Record<string, string> = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapAccount(pubkey: PublicKey, acc: any): DistributionState {
+function mapAccount(pubkey: PublicKey, acc: any, decimals: number): DistributionState {
   const mint = acc.tokenMint.toBase58();
   const arbiter = acc.arbiter.toBase58();
   return {
@@ -261,6 +262,7 @@ function mapAccount(pubkey: PublicKey, acc: any): DistributionState {
     recipient: acc.recipient.toBase58(),
     tokenMint: mint,
     tokenSymbol: TOKEN_SYMBOLS[mint] ?? "TOKEN",
+    tokenDecimals: decimals,
     baseAmount: BigInt(acc.baseAmount.toString()),
     milestoneAmount: BigInt(acc.milestoneAmount.toString()),
     cliffAmount: BigInt(acc.cliffAmount.toString()),
@@ -290,9 +292,34 @@ export async function fetchStreamsFor(
     { memcmp: { offset: 8 + 32, bytes: wallet.toBase58() } },
   ]);
 
+  // Fetch decimals once per unique mint so the UI can render base units
+  // correctly (mUSDC=6, SOL=9, etc.). Missing/failed → default to 9.
+  const allAccounts = [...asAuthority, ...asRecipient];
+  const uniqueMints = Array.from(
+    new Set(allAccounts.map(({ account }) => account.tokenMint.toBase58()))
+  );
+  const decimalsByMint = new Map<string, number>();
+  await Promise.all(
+    uniqueMints.map(async (m) => {
+      try {
+        const info = await getMint(
+          program.provider.connection,
+          new PublicKey(m)
+        );
+        decimalsByMint.set(m, info.decimals);
+      } catch {
+        decimalsByMint.set(m, 9);
+      }
+    })
+  );
+
   const byId = new Map<string, DistributionState>();
-  for (const { publicKey, account } of [...asAuthority, ...asRecipient]) {
-    byId.set(publicKey.toBase58(), mapAccount(publicKey, account));
+  for (const { publicKey, account } of allAccounts) {
+    const mint = account.tokenMint.toBase58();
+    byId.set(
+      publicKey.toBase58(),
+      mapAccount(publicKey, account, decimalsByMint.get(mint) ?? 9)
+    );
   }
   return [...byId.values()];
 }

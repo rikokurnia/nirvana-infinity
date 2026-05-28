@@ -55,12 +55,12 @@ export default function FounderPage() {
         <StatCard
           icon={Wallet}
           label="Total Allocated"
-          value={formatTokenAmount(totalAllocated)}
+          value={formatTokenAmount(totalAllocated, streams[0]?.tokenDecimals ?? 9)}
         />
         <StatCard
           icon={ArrowUpRight}
           label="Total Claimed"
-          value={formatTokenAmount(totalClaimed)}
+          value={formatTokenAmount(totalClaimed, streams[0]?.tokenDecimals ?? 9)}
           highlight
         />
         <StatCard icon={Users} label="Recipients" value={uniqueRecipients.toString()} />
@@ -108,18 +108,18 @@ export default function FounderPage() {
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="font-headline text-lg font-bold text-on-surface">
-                        {formatTokenAmount(totalAmount)} {stream.tokenSymbol}
+                        {formatTokenAmount(totalAmount, stream.tokenDecimals)} {stream.tokenSymbol}
                       </span>
                       <span className={`font-mono text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-widest ${stream.isCancelled ? "bg-red-400/10 text-red-400" : "bg-mint/10 text-mint"}`}>
                         {stream.isCancelled ? "Cancelled" : "Active"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
-                      <span>{formatTokenAmount(stream.baseAmount)} linear</span>
+                      <span>{formatTokenAmount(stream.baseAmount, stream.tokenDecimals)} linear</span>
                       <span className="text-on-surface-variant/20">·</span>
-                      <span>{formatTokenAmount(stream.milestoneAmount)} milestone</span>
+                      <span>{formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} milestone</span>
                       <span className="text-on-surface-variant/20">·</span>
-                      <span>{formatTokenAmount(stream.cliffAmount)} cliff</span>
+                      <span>{formatTokenAmount(stream.cliffAmount, stream.tokenDecimals)} cliff</span>
                     </div>
                     <p className="font-mono text-[10px] text-on-surface-variant/40 mt-1">
                       To: {formatAddress(stream.recipient)} — {stream.id}
@@ -127,7 +127,7 @@ export default function FounderPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-mono text-xs text-mint font-bold">
-                      {formatTokenAmount(claimable)} claimable
+                      {formatTokenAmount(claimable, stream.tokenDecimals)} claimable
                     </p>
                     <p className="font-mono text-[10px] text-on-surface-variant/50 mt-0.5">
                       {claimedPct}% claimed
