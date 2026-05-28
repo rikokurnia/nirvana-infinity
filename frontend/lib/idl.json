@@ -50,6 +50,11 @@
                 "kind": "account",
                 "path": "distribution_state.recipient",
                 "account": "DistributionState"
+              },
+              {
+                "kind": "account",
+                "path": "distribution_state.nonce",
+                "account": "DistributionState"
               }
             ]
           }
@@ -137,6 +142,10 @@
               {
                 "kind": "account",
                 "path": "recipient"
+              },
+              {
+                "kind": "arg",
+                "path": "nonce"
               }
             ]
           }
@@ -177,6 +186,10 @@
         }
       ],
       "args": [
+        {
+          "name": "nonce",
+          "type": "u64"
+        },
         {
           "name": "base_amount",
           "type": "u64"
@@ -345,6 +358,11 @@
                 "kind": "account",
                 "path": "distribution_state.recipient",
                 "account": "DistributionState"
+              },
+              {
+                "kind": "account",
+                "path": "distribution_state.nonce",
+                "account": "DistributionState"
               }
             ]
           }
@@ -464,6 +482,11 @@
               {
                 "kind": "account",
                 "path": "recipient"
+              },
+              {
+                "kind": "account",
+                "path": "distribution_state.nonce",
+                "account": "DistributionState"
               }
             ]
           }
@@ -734,6 +757,14 @@
           {
             "name": "cliff_time",
             "type": "i64"
+          },
+          {
+            "name": "nonce",
+            "docs": [
+              "Per-(authority, recipient) counter so the same pair can have multiple",
+              "concurrent streams. PDA seeds include this so addresses don't collide."
+            ],
+            "type": "u64"
           },
           {
             "name": "milestone_achieved",

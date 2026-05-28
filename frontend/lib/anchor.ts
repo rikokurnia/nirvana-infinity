@@ -55,6 +55,24 @@ export function getProgram(
 
 export function deriveStatePda(
   authority: PublicKey,
+  recipient: PublicKey,
+  nonce: BN | bigint | number
+): PublicKey {
+  const nonceBn = nonce instanceof BN ? nonce : new BN(nonce.toString());
+  // u64 little-endian, 8 bytes — must match `&nonce.to_le_bytes()` in the program.
+  const nonceBuf = nonceBn.toArrayLike(Buffer, "le", 8);
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("state"), authority.toBuffer(), recipient.toBuffer(), nonceBuf],
+    PROGRAM_ID
+  )[0];
+}
+
+/**
+ * Legacy state PDA derivation (pre-nonce). Used only by `releaseVault` to
+ * clean up orphan vaults from streams created before the nonce upgrade.
+ */
+export function deriveLegacyStatePda(
+  authority: PublicKey,
   recipient: PublicKey
 ): PublicKey {
   return PublicKey.findProgramAddressSync(
@@ -98,6 +116,8 @@ export interface CreateStreamArgs {
   endTime: number;
   cliffTime: number;
   arbiter?: PublicKey | null; // optional third party allowed to trigger milestone
+  /** Optional explicit nonce. Defaults to Date.now() — unique per millisecond. */
+  nonce?: BN;
 }
 
 export async function createStream(
@@ -105,7 +125,8 @@ export async function createStream(
   args: CreateStreamArgs
 ): Promise<string> {
   const authority = program.provider.publicKey!;
-  const statePda = deriveStatePda(authority, args.recipient);
+  const nonce = args.nonce ?? new BN(Date.now());
+  const statePda = deriveStatePda(authority, args.recipient, nonce);
   const vaultPda = deriveVaultPda(statePda);
   const authorityTokenAccount = getAssociatedTokenAddressSync(
     args.tokenMint,
@@ -114,6 +135,7 @@ export async function createStream(
 
   return program.methods
     .createStream(
+      nonce,
       args.baseAmount,
       args.cliffAmount,
       args.milestoneAmount,
@@ -226,7 +248,8 @@ export async function releaseVault(
   tokenMint: PublicKey
 ): Promise<string> {
   const authority = program.provider.publicKey!;
-  const statePda = deriveStatePda(authority, recipient);
+  // Legacy (no-nonce) derivation — release_vault targets pre-nonce orphan vaults only.
+  const statePda = deriveLegacyStatePda(authority, recipient);
   const vaultPda = deriveVaultPda(statePda);
   const authorityTokenAccount = getAssociatedTokenAddressSync(
     tokenMint,
@@ -306,6 +329,7 @@ function mapAccount(pubkey: PublicKey, acc: any, decimals: number): Distribution
     isCancelled: acc.isCancelled,
     // PublicKey.default (all-1s base58) means "no arbiter".
     arbiter: arbiter === PublicKey.default.toBase58() ? "" : arbiter,
+    nonce: BigInt(acc.nonce.toString()),
   };
 }
 

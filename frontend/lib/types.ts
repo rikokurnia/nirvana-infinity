@@ -17,6 +17,8 @@ export interface DistributionState {
   isCancelled: boolean;
   /** Empty string when no arbiter is set. */
   arbiter: string;
+  /** Per-(authority, recipient) nonce so multiple concurrent streams to the same recipient don't collide. */
+  nonce: bigint;
 }
 
 export interface CreateStreamParams {

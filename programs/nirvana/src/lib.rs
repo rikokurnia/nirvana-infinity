@@ -9,6 +9,7 @@ pub mod nirvana_protocol {
 
     pub fn create_stream(
         ctx: Context<CreateStream>,
+        nonce: u64,
         base_amount: u64,
         cliff_amount: u64,
         milestone_amount: u64,
@@ -45,6 +46,7 @@ pub mod nirvana_protocol {
         state.cliff_time = cliff_time;
         state.milestone_achieved = false;
         state.is_cancelled = false;
+        state.nonce = nonce;
         state.bump = ctx.bumps.distribution_state;
 
         let cpi_accounts = Transfer {
@@ -143,10 +145,12 @@ pub mod nirvana_protocol {
             .checked_add(claimable)
             .ok_or(NirvanaError::MathOverflow)?;
 
+        let nonce_bytes = state.nonce.to_le_bytes();
         let seeds = &[
-            b"state",
+            b"state".as_ref(),
             state.authority.as_ref(),
             state.recipient.as_ref(),
+            &nonce_bytes,
             &[state.bump],
         ];
 
@@ -241,12 +245,14 @@ pub mod nirvana_protocol {
         state.is_cancelled = true;
 
         let bump = state.bump;
+        let nonce_bytes = state.nonce.to_le_bytes();
 
         if recipient_share > 0 {
             let seeds = &[
-                b"state",
+                b"state".as_ref(),
                 state.authority.as_ref(),
                 state.recipient.as_ref(),
+                &nonce_bytes,
                 &[bump],
             ];
             let signer = &[&seeds[..]];
@@ -269,9 +275,10 @@ pub mod nirvana_protocol {
 
         if creator_share > 0 {
             let seeds = &[
-                b"state",
+                b"state".as_ref(),
                 state.authority.as_ref(),
                 state.recipient.as_ref(),
+                &nonce_bytes,
                 &[bump],
             ];
             let signer = &[&seeds[..]];
@@ -297,9 +304,10 @@ pub mod nirvana_protocol {
         // empty on-chain forever and a new `create_stream` to the same recipient
         // fails with "account already in use".
         let close_seeds = &[
-            b"state",
+            b"state".as_ref(),
             state.authority.as_ref(),
             state.recipient.as_ref(),
+            &nonce_bytes,
             &[bump],
         ];
         let close_signer = &[&close_seeds[..]];
@@ -428,6 +436,7 @@ pub mod nirvana_protocol {
 // ---------------- ACCOUNTS ----------------
 
 #[derive(Accounts)]
+#[instruction(nonce: u64)]
 pub struct CreateStream<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -441,7 +450,7 @@ pub struct CreateStream<'info> {
         init,
         payer = authority,
         space = 8 + DistributionState::INIT_SPACE,
-        seeds = [b"state", authority.key().as_ref(), recipient.key().as_ref()],
+        seeds = [b"state", authority.key().as_ref(), recipient.key().as_ref(), &nonce.to_le_bytes()],
         bump
     )]
     pub distribution_state: Box<Account<'info, DistributionState>>,
@@ -475,7 +484,7 @@ pub struct Withdraw<'info> {
     #[account(
         mut,
         has_one = recipient,
-        seeds = [b"state", distribution_state.authority.as_ref(), recipient.key().as_ref()],
+        seeds = [b"state", distribution_state.authority.as_ref(), recipient.key().as_ref(), &distribution_state.nonce.to_le_bytes()],
         bump = distribution_state.bump
     )]
     pub distribution_state: Box<Account<'info, DistributionState>>,
@@ -513,7 +522,7 @@ pub struct TopUp<'info> {
     #[account(
         mut,
         has_one = authority,
-        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref()],
+        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref(), &distribution_state.nonce.to_le_bytes()],
         bump = distribution_state.bump
     )]
     pub distribution_state: Box<Account<'info, DistributionState>>,
@@ -544,7 +553,7 @@ pub struct Cancel<'info> {
         mut,
         close = authority,
         has_one = authority,
-        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref()],
+        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref(), &distribution_state.nonce.to_le_bytes()],
         bump = distribution_state.bump
     )]
     pub distribution_state: Box<Account<'info, DistributionState>>,
@@ -616,6 +625,9 @@ pub struct DistributionState {
     pub start_time: i64,
     pub end_time: i64,
     pub cliff_time: i64,
+    /// Per-(authority, recipient) counter so the same pair can have multiple
+    /// concurrent streams. PDA seeds include this so addresses don't collide.
+    pub nonce: u64,
     pub milestone_achieved: bool,
     pub is_cancelled: bool,
     pub bump: u8,
