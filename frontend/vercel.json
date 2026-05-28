@@ -1,12 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "installCommand": "npm install",
-  "functions": {
-    "app/api/faucet/route.ts": {
-      "runtime": "nodejs22.x",
-      "maxDuration": 30
-    }
-  }
+  "framework": "nextjs"
 }
