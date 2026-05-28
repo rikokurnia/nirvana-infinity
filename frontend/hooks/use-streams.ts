@@ -14,6 +14,7 @@ import {
   cancel as cancelOnChain,
   createStream as createStreamOnChain,
   fetchStreamsFor,
+  releaseVault as releaseVaultOnChain,
   withdraw as withdrawOnChain,
 } from "@/lib/anchor";
 import { useNirvanaProgram } from "@/hooks/use-nirvana-program";
@@ -222,6 +223,29 @@ export function useStreams() {
     [program, streams, refresh]
   );
 
+  const handleReleaseVault = useCallback(
+    async (recipient: string, tokenMint: string): Promise<string> => {
+      if (!program) throw new Error("Connect your wallet first.");
+      setLoading(true);
+      setError(null);
+      try {
+        const signature = await releaseVaultOnChain(
+          program,
+          new PublicKey(recipient),
+          new PublicKey(tokenMint)
+        );
+        await refresh();
+        return signature;
+      } catch (err) {
+        setError(toErrorMessage(err));
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [program, refresh]
+  );
+
   return {
     streams,
     loading,
@@ -232,6 +256,7 @@ export function useStreams() {
     getWorkerStreams,
     getFounderStreams,
     handleWithdraw,
+    handleReleaseVault,
     handleCancel,
     handleCreateStream,
   };

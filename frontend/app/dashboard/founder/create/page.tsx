@@ -45,9 +45,14 @@ function newRow(): RecipientRow {
 }
 
 export default function CreateStreamPage() {
-  const { handleCreateStream } = useStreams();
+  const { handleCreateStream, handleReleaseVault } = useStreams();
   const { user } = useAuth();
   const router = useRouter();
+  // When the program rejects create_stream because a stuck vault PDA exists
+  // from a previously-cancelled stream, we cache the recipient that hit it so
+  // the UI can offer a "Release stuck vault" action.
+  const [stuckVault, setStuckVault] = useState<{ recipient: string; tokenMint: string } | null>(null);
+  const [releaseStatus, setReleaseStatus] = useState<"idle" | "loading" | "done">("idle");
   const presets = getPresets();
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Own flag — don't borrow useStreams' `loading`, which stays true while the
@@ -121,6 +126,7 @@ export default function CreateStreamPage() {
     const tokenMint = COMMON_TOKENS.find((t) => t.symbol === tokenSymbol)?.mint || COMMON_TOKENS[0].mint;
 
     setSubmitError(null);
+    setStuckVault(null);
     setSubmitting(true);
     try {
       for (const r of validRecipients) {
@@ -156,7 +162,18 @@ export default function CreateStreamPage() {
         }
       }
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitError(msg);
+      // Surface the stuck-vault action when the friendly message matches.
+      if (msg.toLowerCase().includes("vault to this recipient still exists")) {
+        // Best-effort: stash the recipient that was being submitted when it failed.
+        // We can't perfectly identify which row blew up in a multi-recipient batch,
+        // so cache the first valid recipient as the candidate.
+        const failed = validRecipients[0];
+        if (failed) {
+          setStuckVault({ recipient: failed.address.trim(), tokenMint });
+        }
+      }
       return; // stay on the form so the user can fix and retry
     } finally {
       setSubmitting(false);
@@ -316,9 +333,34 @@ export default function CreateStreamPage() {
             </div>
 
             {submitError && (
-              <p className="font-mono text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 break-words">
-                {submitError}
-              </p>
+              <div className="font-mono text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 break-words space-y-3">
+                <p>{submitError}</p>
+                {stuckVault && (
+                  <button
+                    type="button"
+                    disabled={releaseStatus === "loading"}
+                    onClick={async () => {
+                      setReleaseStatus("loading");
+                      try {
+                        await handleReleaseVault(stuckVault.recipient, stuckVault.tokenMint);
+                        setReleaseStatus("done");
+                        setSubmitError(null);
+                        setStuckVault(null);
+                      } catch (err) {
+                        setSubmitError(err instanceof Error ? err.message : String(err));
+                        setReleaseStatus("idle");
+                      }
+                    }}
+                    className="block w-full text-center bg-mint/10 border border-mint/40 text-mint font-mono text-[11px] font-bold px-4 py-2 rounded-sm hover:bg-mint/20 transition-all uppercase tracking-widest disabled:opacity-50"
+                  >
+                    {releaseStatus === "loading"
+                      ? "Releasing vault…"
+                      : releaseStatus === "done"
+                        ? "✓ Vault released — retry Create Stream"
+                        : "Release stuck vault & retry"}
+                  </button>
+                )}
+              </div>
             )}
 
             <button

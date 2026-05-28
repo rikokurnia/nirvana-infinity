@@ -368,6 +368,61 @@ pub mod nirvana_protocol {
 
         Ok(())
     }
+
+    /// Cleanup for orphaned vaults left by streams cancelled BEFORE the
+    /// cancel-closes-vault upgrade. Closes the vault TokenAccount only if the
+    /// corresponding state PDA no longer exists (i.e. the stream was already
+    /// cancelled). Any leftover tokens go back to the founder.
+    pub fn release_vault(ctx: Context<ReleaseVault>) -> Result<()> {
+        // Refuse if a live state PDA still exists for this (authority, recipient)
+        // pair — that means an active stream is in place and cleanup is wrong.
+        require!(
+            ctx.accounts.state_signer.data_is_empty(),
+            NirvanaError::StreamStillActive
+        );
+
+        let authority_key = ctx.accounts.authority.key();
+        let recipient_key = ctx.accounts.recipient.key();
+        let state_bump = ctx.bumps.state_signer;
+
+        let seeds = &[
+            b"state".as_ref(),
+            authority_key.as_ref(),
+            recipient_key.as_ref(),
+            &[state_bump],
+        ];
+        let signer = &[&seeds[..]];
+
+        // Salvage any leftover token balance back to the founder.
+        let balance = ctx.accounts.token_vault.amount;
+        if balance > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.token_vault.to_account_info(),
+                        to: ctx.accounts.authority_token_account.to_account_info(),
+                        authority: ctx.accounts.state_signer.to_account_info(),
+                    },
+                    signer,
+                ),
+                balance,
+            )?;
+        }
+
+        // Close the orphan vault; rent lamports return to the founder.
+        token::close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.token_vault.to_account_info(),
+                destination: ctx.accounts.authority.to_account_info(),
+                authority: ctx.accounts.state_signer.to_account_info(),
+            },
+            signer,
+        ))?;
+
+        Ok(())
+    }
 }
 
 // ---------------- ACCOUNTS ----------------
@@ -513,6 +568,35 @@ pub struct Cancel<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+#[derive(Accounts)]
+pub struct ReleaseVault<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    /// CHECK: only used to re-derive the state PDA seeds. No data is read.
+    pub recipient: UncheckedAccount<'info>,
+
+    /// CHECK: must be the closed state PDA — verified via `data_is_empty()` in
+    /// the instruction body. Used solely as the CPI signer for vault ops.
+    #[account(
+        seeds = [b"state", authority.key().as_ref(), recipient.key().as_ref()],
+        bump,
+    )]
+    pub state_signer: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", state_signer.key().as_ref()],
+        bump,
+    )]
+    pub token_vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub authority_token_account: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
+}
+
 // ---------------- STATE ----------------
 
 #[account]
@@ -603,4 +687,6 @@ pub enum NirvanaError {
     NothingToTopUp,
     #[msg("New end time must be later than the current one.")]
     InvalidExtension,
+    #[msg("A live stream still exists for this recipient — release_vault is for orphans only.")]
+    StreamStillActive,
 }

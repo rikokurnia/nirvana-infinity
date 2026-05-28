@@ -214,6 +214,38 @@ export interface TopUpArgs {
   newEndTime?: number | null; // unix seconds; null to leave unchanged
 }
 
+/**
+ * Cleanup for orphaned vaults left by streams cancelled before the
+ * cancel-closes-vault upgrade. Releases the vault PDA for a (founder, recipient)
+ * pair when no live state PDA exists, refunding any leftover tokens to the
+ * founder.
+ */
+export async function releaseVault(
+  program: Program,
+  recipient: PublicKey,
+  tokenMint: PublicKey
+): Promise<string> {
+  const authority = program.provider.publicKey!;
+  const statePda = deriveStatePda(authority, recipient);
+  const vaultPda = deriveVaultPda(statePda);
+  const authorityTokenAccount = getAssociatedTokenAddressSync(
+    tokenMint,
+    authority
+  );
+
+  return program.methods
+    .releaseVault()
+    .accounts({
+      authority,
+      recipient,
+      stateSigner: statePda,
+      tokenVault: vaultPda,
+      authorityTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .rpc();
+}
+
 export async function topUp(
   program: Program,
   args: TopUpArgs

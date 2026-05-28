@@ -210,6 +210,94 @@
       ]
     },
     {
+      "name": "release_vault",
+      "docs": [
+        "Cleanup for orphaned vaults left by streams cancelled BEFORE the",
+        "cancel-closes-vault upgrade. Closes the vault TokenAccount only if the",
+        "corresponding state PDA no longer exists (i.e. the stream was already",
+        "cancelled). Any leftover tokens go back to the founder."
+      ],
+      "discriminator": [
+        162,
+        80,
+        81,
+        254,
+        102,
+        228,
+        132,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "recipient"
+        },
+        {
+          "name": "state_signer",
+          "docs": [
+            "the instruction body. Used solely as the CPI signer for vault ops."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "recipient"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "state_signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "top_up",
       "docs": [
         "Authority adds more linearly-vesting base funds and/or extends the end",
@@ -571,6 +659,11 @@
       "code": 6014,
       "name": "InvalidExtension",
       "msg": "New end time must be later than the current one."
+    },
+    {
+      "code": 6015,
+      "name": "StreamStillActive",
+      "msg": "A live stream still exists for this recipient — release_vault is for orphans only."
     }
   ],
   "types": [
