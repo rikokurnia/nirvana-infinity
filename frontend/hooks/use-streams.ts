@@ -86,6 +86,17 @@ export function useStreams() {
     [streams]
   );
 
+  // Founder view: only streams this wallet created (authority), NEVER streams
+  // where this wallet is just a recipient — otherwise incoming streams leak
+  // into the founder dashboard.
+  const getFounderStreams = useCallback(
+    (founderAddress: string): DistributionState[] =>
+      founderAddress
+        ? streams.filter((s) => s.authority === founderAddress)
+        : [],
+    [streams]
+  );
+
   const getStream = useCallback(
     (id: string) => streams.find((s) => s.id === id),
     [streams]
@@ -185,6 +196,7 @@ export function useStreams() {
     getStream,
     getClaimable,
     getWorkerStreams,
+    getFounderStreams,
     handleWithdraw,
     handleCancel,
     handleCreateStream,

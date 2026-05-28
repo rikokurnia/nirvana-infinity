@@ -17,8 +17,17 @@ import {
   calculateStreamSplit,
   type StreamPreset,
 } from "@/lib/stream-calculator";
+import { FaucetButton } from "@/app/components/faucet-button";
+
+// mUSDC = devnet mock USDC minted by the in-app faucet. Default token so the
+// founder→worker flow works end-to-end without wrapping SOL. Falls back to the
+// SOL mint only if the env var is missing (faucet not set up yet).
+const MOCK_USDC_MINT =
+  process.env.NEXT_PUBLIC_MOCK_USDC_MINT ??
+  "So11111111111111111111111111111111111111112";
 
 const COMMON_TOKENS = [
+  { symbol: "mUSDC", mint: MOCK_USDC_MINT },
   { symbol: "SOL", mint: "So11111111111111111111111111111111111111112" },
   { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
   { symbol: "BONK", mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
@@ -35,12 +44,15 @@ function newRow(): RecipientRow {
 }
 
 export default function CreateStreamPage() {
-  const { handleCreateStream, loading } = useStreams();
+  const { handleCreateStream } = useStreams();
   const router = useRouter();
   const presets = getPresets();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Own flag — don't borrow useStreams' `loading`, which stays true while the
+  // background stream list fetches over the flaky RPC and would freeze the button.
+  const [submitting, setSubmitting] = useState(false);
 
-  const [tokenSymbol, setTokenSymbol] = useState("SOL");
+  const [tokenSymbol, setTokenSymbol] = useState("mUSDC");
   const [selectedPreset, setSelectedPreset] = useState<StreamPreset>(presets[0]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -67,9 +79,18 @@ export default function CreateStreamPage() {
   const totalMilestone = (totalAmount * selectedPreset.milestonePercent) / 100;
   const totalCliff = (totalAmount * selectedPreset.cliffPercent) / 100;
 
+  // The date picker yields midnight of the chosen day, which for "today" is
+  // already in the past — the program rejects start_time < now. Clamp to a
+  // small buffer ahead of now so the tx is still valid by the time it lands.
+  const effectiveStart = () => {
+    const raw = Math.floor(new Date(startDate).getTime() / 1000);
+    const now = Math.floor(Date.now() / 1000);
+    return Math.max(raw, now + 120);
+  };
+
   const getSplit = (amount: string) => {
     if (!amount || !startDate || !endDate) return null;
-    const start = Math.floor(new Date(startDate).getTime() / 1000);
+    const start = effectiveStart();
     const end = Math.floor(new Date(endDate).getTime() / 1000);
     if (start >= end) return null;
     return calculateStreamSplit(parseFloat(amount), start, end, selectedPreset);
@@ -79,11 +100,12 @@ export default function CreateStreamPage() {
     e.preventDefault();
     if (validRecipients.length === 0 || !startDate || !endDate) return;
 
-    const start = Math.floor(new Date(startDate).getTime() / 1000);
+    const start = effectiveStart();
     const end = Math.floor(new Date(endDate).getTime() / 1000);
     const tokenMint = COMMON_TOKENS.find((t) => t.symbol === tokenSymbol)?.mint || COMMON_TOKENS[0].mint;
 
     setSubmitError(null);
+    setSubmitting(true);
     try {
       for (const r of validRecipients) {
         const split = getSplit(r.amount);
@@ -103,6 +125,8 @@ export default function CreateStreamPage() {
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
       return; // stay on the form so the user can fix and retry
+    } finally {
+      setSubmitting(false);
     }
 
     router.push("/dashboard/founder");
@@ -110,11 +134,14 @@ export default function CreateStreamPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-headline text-3xl font-bold tracking-tight">Create Streams</h1>
-        <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
-          Pay multiple team members with one setup
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-headline text-3xl font-bold tracking-tight">Create Streams</h1>
+          <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
+            Pay multiple team members with one setup
+          </p>
+        </div>
+        <FaucetButton />
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -250,13 +277,13 @@ export default function CreateStreamPage() {
 
             <button
               type="submit"
-              disabled={loading || validRecipients.length === 0}
+              disabled={submitting || validRecipients.length === 0 || !startDate || !endDate}
               className="w-full bg-mint text-black font-mono text-sm font-bold px-8 py-4 rounded-sm hover:brightness-110 active:scale-95 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(47,243,200,0.2)]"
             >
-              {loading
+              {submitting
                 ? "Creating..."
                 : `Create ${validRecipients.length} Stream${validRecipients.length !== 1 ? "s" : ""}`}
-              {!loading && <ChevronRight className="w-4 h-4" />}
+              {!submitting && <ChevronRight className="w-4 h-4" />}
             </button>
           </motion.div>
 

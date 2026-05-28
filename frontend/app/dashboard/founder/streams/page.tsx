@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useStreams } from "@/hooks/use-streams";
+import { useAuth } from "@/app/providers/privy-provider";
 import { formatTokenAmount, calculateClaimable, formatAddress, formatDate } from "@/lib/utils";
 import { motion } from "motion/react";
 import { Ban } from "lucide-react";
 
 export default function FounderStreamsPage() {
-  const { streams, handleCancel, loading } = useStreams();
+  const { getFounderStreams, handleCancel, loading } = useStreams();
+  const { user } = useAuth();
+  // Filter to streams this wallet created — never recipient-only ones.
+  const streams = getFounderStreams(user?.wallet?.address || "");
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
 

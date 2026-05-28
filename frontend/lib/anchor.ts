@@ -245,6 +245,10 @@ const TOKEN_SYMBOLS: Record<string, string> = {
   So11111111111111111111111111111111111111112: "SOL",
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
   DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263: "BONK",
+  // Devnet mock USDC minted by the in-app faucet (address set per-deploy).
+  ...(process.env.NEXT_PUBLIC_MOCK_USDC_MINT
+    ? { [process.env.NEXT_PUBLIC_MOCK_USDC_MINT]: "mUSDC" }
+    : {}),
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

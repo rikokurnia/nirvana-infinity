@@ -1,6 +1,7 @@
 "use client";
 
 import { useStreams } from "@/hooks/use-streams";
+import { useAuth } from "@/app/providers/privy-provider";
 import {
   formatTokenAmount,
   calculateClaimable,
@@ -16,9 +17,15 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
+import { FaucetButton } from "@/app/components/faucet-button";
 
 export default function FounderPage() {
-  const { streams } = useStreams();
+  const { getFounderStreams } = useStreams();
+  const { user } = useAuth();
+  // Only show streams this wallet *created* — recipient-only streams belong
+  // on the worker view and must never bleed into the founder dashboard.
+  const founderAddress = user?.wallet?.address || "";
+  const streams = getFounderStreams(founderAddress);
 
   const activeStreams = streams.filter((s) => !s.isCancelled);
   const totalAllocated = activeStreams.reduce(
@@ -33,11 +40,14 @@ export default function FounderPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-headline text-3xl font-bold tracking-tight">Founder Dashboard</h1>
-        <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
-          Manage your token distribution streams
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-headline text-3xl font-bold tracking-tight">Founder Dashboard</h1>
+          <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
+            Manage your token distribution streams
+          </p>
+        </div>
+        <FaucetButton />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
