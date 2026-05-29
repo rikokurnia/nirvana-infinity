@@ -71,6 +71,14 @@ Note: The test suite validates stream creation, time validation, and token trans
 
 ---
 
+## 🌍 Live Demo
+
+**Frontend:** https://nirvana-infinity.vercel.app
+
+**Program ID (Devnet):** `FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc`
+
+---
+
 ## 📑 Program Features
 The program implements the following Equity-Streaming architecture:
 
@@ -80,6 +88,8 @@ The program implements the following Equity-Streaming architecture:
 | `withdraw` | Claims matured tokens (linear + milestone) |
 | `cancel` | Terminates stream, pays recipient unlocked portion, refunds creator |
 | `trigger_milestone` | Flips `milestone_achieved` flag (oracle/admin only) |
+| `top_up` | Adds tokens and/or extends end time on a live stream |
+| `release_vault` | Cleans up orphaned vaults from pre-cancel-upgrade streams |
 
 ![alt text](Program-features-status.png)
 
@@ -117,10 +127,36 @@ This repository is equipped with **GitHub Actions**. Every push or pull request 
 
 ---
 
+## 🖥️ Frontend (Week 6)
+
+The `frontend/` directory contains the Next.js 15 App Router UI.
+
+### Features
+- **Wallet connection** — Privy embedded wallet + Phantom/Solflare via Solana Wallet Standard
+- **Founder dashboard** — create streams (multi-recipient, token select, preset splits, optional cliff), view/cancel active streams, transaction history
+- **Worker dashboard** — list incoming streams, dual-layer progress bars (linear + milestone), one-click withdraw
+- **mUSDC faucet** — in-app button mints devnet mock USDC to the connected wallet (server-side, keypair never exposed)
+- **Loading states** — every transaction shows wallet approval → sending → confirming feedback
+- **Error messages** — on-chain errors decoded and shown inline
+- **Nonce-seeded PDAs** — same founder → recipient pair can have unlimited concurrent/sequential streams (no collision)
+
+### Frontend Setup
+
+```bash
+cd frontend
+cp .env.example .env.local   # fill in NEXT_PUBLIC_PRIVY_APP_ID, NEXT_PUBLIC_MOCK_USDC_MINT, MOCK_USDC_FAUCET_SECRET
+npm install
+npm run dev
+```
+
+Open http://localhost:3000.
+
+---
+
 ## 👥 Contributor Roles
 
-* **Sora Onchain (@SoraOnchain)**: Lead Architect. Responsible for manual project initialization, account struct definitions, core instruction scaffolding, and CI pipeline setup.
-* **Riko Kurnia (@rikokurnia)**: Frontend Integration & Documentation. Responsible for README verification, local build testing, and frontend workspace setup.
+* **Sora Onchain (@SoraOnchain)**: Lead Architect. Smart contract design, account struct definitions, all on-chain instructions, CI pipeline.
+* **Riko Kurnia (@rikokurnia)**: Frontend Integration. Full Next.js UI (dashboard, create/cancel/withdraw flows, faucet, history), Anchor integration layer (`lib/anchor.ts`), nonce-seeded PDA fix, devnet deployment.
 
 ---
 
