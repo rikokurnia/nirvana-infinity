@@ -16,6 +16,7 @@ import {
 } from "@solana/web3.js";
 import idlJson from "./idl.json";
 import type { DistributionState } from "./types";
+import { MOCK_TOKEN_SYMBOLS } from "./tokens";
 
 export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID ??
@@ -301,10 +302,8 @@ const TOKEN_SYMBOLS: Record<string, string> = {
   So11111111111111111111111111111111111111112: "SOL",
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
   DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263: "BONK",
-  // Devnet mock USDC minted by the in-app faucet (address set per-deploy).
-  ...(process.env.NEXT_PUBLIC_MOCK_USDC_MINT
-    ? { [process.env.NEXT_PUBLIC_MOCK_USDC_MINT]: "mUSDC" }
-    : {}),
+  // Devnet mock SPL tokens minted by the in-app faucet (addresses set per-deploy).
+  ...MOCK_TOKEN_SYMBOLS,
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

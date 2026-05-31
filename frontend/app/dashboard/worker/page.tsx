@@ -107,9 +107,9 @@ export default function WorkerPage() {
                         <span className="font-mono text-[9px] text-on-surface-variant/50 uppercase tracking-widest">Time</span>
                         <span className="font-mono text-[9px] text-on-surface-variant/50">{timePct}%</span>
                       </div>
-                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden flex">
+                      <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden flex">
                         <div className="h-full bg-linear-to-r from-mint to-solana-green" style={{ width: `${claimedPct}%` }} />
-                        <div className="h-full bg-white/10" style={{ width: `${Math.max(0, timePct - claimedPct)}%` }} />
+                        <div className="h-full bg-surface-3" style={{ width: `${Math.max(0, timePct - claimedPct)}%` }} />
                       </div>
                     </div>
                   </div>

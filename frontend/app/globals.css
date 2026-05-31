@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* Semantic colors resolve through CSS vars so they can flip per theme. Accent
+   colors (mint / solana-green) are constant across themes. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-headline: "Hanken Grotesk", sans-serif;
@@ -7,19 +9,65 @@
 
   --color-mint: #2FF3C8;
   --color-solana-green: #14F195;
-  --color-surface: #141218;
-  --color-on-surface: #e6e0e9;
-  --color-on-surface-variant: #cbc4d2;
-  --color-outline-variant: #494551;
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline-variant: var(--outline-variant);
+
+  /* translucent surfaces / hairlines (replace hardcoded white/N) */
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hairline: var(--hairline);
+  --color-hairline-soft: var(--hairline-soft);
+}
+
+/* Dark theme (default) — values chosen to reproduce the original design exactly. */
+:root,
+.dark {
+  --background: #000000;
+  --surface: #141218;
+  --on-surface: #e6e0e9;
+  --on-surface-variant: #cbc4d2;
+  --outline-variant: #494551;
+
+  --surface-1: rgba(255, 255, 255, 0.03);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.10);
+  --hairline: rgba(255, 255, 255, 0.10);
+  --hairline-soft: rgba(255, 255, 255, 0.05);
+
+  --grid-line: rgba(255, 255, 255, 0.02);
+  --radial-tint: rgba(47, 243, 200, 0.08);
+}
+
+/* Light theme. */
+.light {
+  --background: #f7f7f9;
+  --surface: #ffffff;
+  --on-surface: #1a1820;
+  --on-surface-variant: #55505e;
+  --outline-variant: #d9d5e0;
+
+  --surface-1: rgba(20, 18, 24, 0.03);
+  --surface-2: rgba(20, 18, 24, 0.05);
+  --surface-3: rgba(20, 18, 24, 0.08);
+  --hairline: rgba(20, 18, 24, 0.12);
+  --hairline-soft: rgba(20, 18, 24, 0.07);
+
+  --grid-line: rgba(20, 18, 24, 0.03);
+  --radial-tint: rgba(20, 200, 160, 0.10);
 }
 
 @layer base {
   body {
-    @apply bg-black text-on-surface font-sans antialiased;
+    @apply bg-background text-on-surface font-sans antialiased;
     background-image:
-      radial-gradient(circle at 50% -20%, rgba(47, 243, 200, 0.08), transparent 40%),
-      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      radial-gradient(circle at 50% -20%, var(--radial-tint), transparent 40%),
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 100% 100%, 40px 40px, 40px 40px;
     background-attachment: fixed;
   }
@@ -27,7 +75,7 @@
 
 @layer components {
   .glass-plate {
-    @apply bg-white/3 backdrop-blur-xl border border-white/10;
+    @apply bg-surface-1 backdrop-blur-xl border border-hairline;
   }
 
   .glow-text {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Hanken_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import { PrivyProvider } from "./providers/privy-provider";
+import { ThemeProvider } from "./providers/theme-provider";
 import AIChat from "./components/ai-chat";
 import "./globals.css";
 
@@ -43,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${hankenGrotesk.variable} ${jetbrainsMono.variable} min-h-screen antialiased`}
       >
@@ -55,10 +56,12 @@ export default function RootLayout({
             strategy="afterInteractive"
           />
         )}
-        <PrivyProvider>
-          {children}
-          <AIChat />
-        </PrivyProvider>
+        <ThemeProvider>
+          <PrivyProvider>
+            {children}
+            <AIChat />
+          </PrivyProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

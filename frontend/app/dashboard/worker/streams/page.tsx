@@ -79,7 +79,7 @@ export default function WorkerStreamsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                       <div className="h-full bg-linear-to-r from-mint to-solana-green transition-all" style={{ width: `${totalPct}%` }} />
                     </div>
                     <div className="flex justify-between font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">

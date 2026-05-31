@@ -15,10 +15,13 @@ import {
   LogOut,
   Copy,
   Check,
+  Menu,
+  X,
   History as HistoryIcon,
 } from "lucide-react";
 import { formatAddress } from "@/lib/utils";
 import { useState } from "react";
+import { ThemeToggle } from "@/app/components/theme-toggle";
 
 export default function DashboardLayout({
   children,
@@ -30,6 +33,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [copied, setCopied] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (ready && !authenticated) router.push("/");
@@ -40,6 +44,11 @@ export default function DashboardLayout({
       router.push("/onboarding/role");
     }
   }, [ready, authenticated, roleReady, role, router]);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   if (!ready || !authenticated || !roleReady || !role) return null;
 
@@ -54,20 +63,32 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen">
-      <div className="flex">
-        <Sidebar role={role} pathname={pathname} />
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-        <div className="flex-1 ml-60">
-          <TopBar
-            address={address}
-            isFounder={isFounder}
-            onCopy={handleCopy}
-            copied={copied}
-            onLogout={logout}
-            pathname={pathname}
-          />
-          <main className="p-6 min-h-[calc(100vh-3.5rem)]">{children}</main>
-        </div>
+      <Sidebar
+        role={role}
+        pathname={pathname}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      <div className="ml-0 md:ml-60">
+        <TopBar
+          address={address}
+          isFounder={isFounder}
+          onCopy={handleCopy}
+          copied={copied}
+          onLogout={logout}
+          pathname={pathname}
+          onMenu={() => setSidebarOpen(true)}
+        />
+        <main className="p-4 sm:p-6 min-h-[calc(100vh-3.5rem)]">{children}</main>
       </div>
     </div>
   );
@@ -80,6 +101,7 @@ function TopBar({
   copied,
   onLogout,
   pathname,
+  onMenu,
 }: {
   address: string;
   isFounder: boolean;
@@ -87,6 +109,7 @@ function TopBar({
   copied: boolean;
   onLogout: () => void;
   pathname: string;
+  onMenu: () => void;
 }) {
   const getTitle = () => {
     if (pathname.includes("/create")) return "Create Stream";
@@ -96,21 +119,31 @@ function TopBar({
   };
 
   return (
-    <div className="sticky top-0 z-30 border-b border-white/5 bg-black/60 backdrop-blur-xl">
-      <div className="px-6 py-3 flex items-center justify-between">
-        <div>
-          <h2 className="font-headline text-sm font-bold text-on-surface tracking-tight">
-            {getTitle()}
-          </h2>
-          <p className="font-mono text-[9px] text-on-surface-variant/50 uppercase tracking-widest">
-            {isFounder ? "Founder" : "Worker"}
-          </p>
+    <div className="sticky top-0 z-30 border-b border-hairline-soft bg-background/60 backdrop-blur-xl">
+      <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={onMenu}
+            aria-label="Open menu"
+            className="md:hidden p-1.5 -ml-1 rounded-sm text-on-surface-variant hover:text-mint transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="min-w-0">
+            <h2 className="font-headline text-sm font-bold text-on-surface tracking-tight truncate">
+              {getTitle()}
+            </h2>
+            <p className="font-mono text-[9px] text-on-surface-variant/50 uppercase tracking-widest">
+              {isFounder ? "Founder" : "Worker"}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
           <button
             onClick={onCopy}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-sm bg-white/3 border border-white/10 hover:border-mint/30 hover:bg-mint/5 transition-all group"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-sm bg-surface-1 border border-hairline hover:border-mint/30 hover:bg-mint/5 transition-all group"
           >
             <span className="font-mono text-xs text-on-surface-variant group-hover:text-mint transition-colors">
               {formatAddress(address)}
@@ -127,7 +160,7 @@ function TopBar({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-red-400/20 text-red-400 font-mono text-[10px] font-bold uppercase tracking-widest hover:bg-red-400/10 transition-all"
           >
             <LogOut className="w-3 h-3" />
-            Disconnect
+            <span className="hidden sm:inline">Disconnect</span>
           </button>
         </div>
       </div>
@@ -138,9 +171,13 @@ function TopBar({
 function Sidebar({
   role,
   pathname,
+  open,
+  onClose,
 }: {
   role: string;
   pathname: string;
+  open: boolean;
+  onClose: () => void;
 }) {
   const { setRole } = useRole();
   const router = useRouter();
@@ -168,34 +205,52 @@ function Sidebar({
 
   const menuItems = role === "founder" ? founderMenu : workerMenu;
 
+  const go = (path: string) => {
+    router.push(path);
+    onClose();
+  };
+
   return (
-    <aside className="fixed top-0 left-0 w-60 h-screen glass-plate border-r border-white/5 flex flex-col">
-      <div className="p-5 pb-4 border-b border-white/5">
-        <div
-          onClick={() => router.push("/")}
-          className="flex items-center gap-2 cursor-pointer group"
-        >
-          <img src="/images/removbg.png" alt="Nirvana" className="w-7 h-7 object-contain" />
-          <span className="font-headline text-lg font-bold text-mint tracking-tighter group-hover:brightness-110 transition-all">
-            Nirvana
-          </span>
+    <aside
+      className={`fixed top-0 left-0 w-60 h-screen glass-plate border-r border-hairline-soft flex flex-col z-50 transition-transform duration-200 md:translate-x-0 ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      <div className="p-5 pb-4 border-b border-hairline-soft flex items-start justify-between">
+        <div>
+          <div
+            onClick={() => go("/")}
+            className="flex items-center gap-2 cursor-pointer group"
+          >
+            <img src="/images/removbg.png" alt="Nirvana" className="w-7 h-7 object-contain" />
+            <span className="font-headline text-lg font-bold text-mint tracking-tighter group-hover:brightness-110 transition-all">
+              Nirvana
+            </span>
+          </div>
+          <p className="font-mono text-[9px] text-on-surface-variant/50 mt-0.5 uppercase tracking-widest">
+            {role === "founder" ? "Founder" : "Worker"} — Devnet
+          </p>
         </div>
-        <p className="font-mono text-[9px] text-on-surface-variant/50 mt-0.5 uppercase tracking-widest">
-          {role === "founder" ? "Founder" : "Worker"} — Devnet
-        </p>
+        <button
+          onClick={onClose}
+          aria-label="Close menu"
+          className="md:hidden p-1 -mr-1 text-on-surface-variant hover:text-mint transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
-      <nav className="flex flex-col gap-0.5 flex-1 p-3">
+      <nav className="flex flex-col gap-0.5 flex-1 p-3 overflow-y-auto">
         {menuItems.map((item) => {
           const active = isActive(item.path);
           return (
             <button
               key={item.path}
-              onClick={() => router.push(item.path)}
+              onClick={() => go(item.path)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-mono text-[11px] font-bold tracking-widest uppercase transition-all ${
                 active
                   ? "bg-mint/10 text-mint border-l-2 border-mint"
-                  : "text-on-surface-variant/60 hover:text-on-surface-variant hover:bg-white/3 border-l-2 border-transparent"
+                  : "text-on-surface-variant/60 hover:text-on-surface-variant hover:bg-surface-1 border-l-2 border-transparent"
               }`}
             >
               <item.icon className={`w-4 h-4 ${active ? "text-mint" : "text-on-surface-variant/40"}`} />
@@ -205,21 +260,21 @@ function Sidebar({
         })}
       </nav>
 
-      <div className="p-3 border-t border-white/5 flex flex-col gap-0.5">
+      <div className="p-3 border-t border-hairline-soft flex flex-col gap-0.5">
         <button
           onClick={() => {
             setRole(null);
-            router.push("/onboarding/role");
+            go("/onboarding/role");
           }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-sm font-mono text-[11px] font-bold tracking-widest uppercase text-on-surface-variant/40 hover:text-mint hover:bg-white/3 transition-all border-l-2 border-transparent"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-sm font-mono text-[11px] font-bold tracking-widest uppercase text-on-surface-variant/40 hover:text-mint hover:bg-surface-1 transition-all border-l-2 border-transparent"
         >
           <ArrowLeft className="w-4 h-4" />
           Switch Role
         </button>
 
         <button
-          onClick={() => router.push("/")}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-sm font-mono text-[11px] font-bold tracking-widest uppercase text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-white/3 transition-all border-l-2 border-transparent"
+          onClick={() => go("/")}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-sm font-mono text-[11px] font-bold tracking-widest uppercase text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-1 transition-all border-l-2 border-transparent"
         >
           <Home className="w-4 h-4" />
           Landing Page

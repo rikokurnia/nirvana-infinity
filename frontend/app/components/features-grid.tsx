@@ -21,7 +21,7 @@ export default function FeaturesGrid() {
             One-time setup. Tokens flow automatically to your team on a schedule you choose. Linear payments keep builders paid. Milestone bonuses keep them motivated.
           </p>
         </div>
-        <div className="mt-12 h-64 w-full border border-white/5 rounded-lg relative overflow-hidden bg-black/40">
+        <div className="mt-12 h-64 w-full border border-hairline-soft rounded-lg relative overflow-hidden bg-black/40">
           <img
             className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity duration-700"
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQGb2Wops8I_rnRliMHyY0eZAHoi6RX7DkXqHNoWjQiMNR785sLShpdkpiMy5x5bxZsu_bz2AMpDmYL0YoEQmpt4qf_kTvDayyDmtWUz0tJlvjXKwtWe_4vl2OEEDjvSIupnmBxv9gYPeDAP-iwp81DOXLvnH8fHK5uZP0Gf8qxx5NrN-Da30LVEEvx66DtPkfsJKQlNAJ2l1UKaNdqGGwfCizeqWrktVR64Aiu-TdTKAYG-yi2YbeOEcw6eDtq8jS0V-hpcOqXd9J"

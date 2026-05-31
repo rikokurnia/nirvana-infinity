@@ -54,7 +54,7 @@ export default function PresetsPage() {
         <div className="flex gap-3">
           <button
             onClick={handleReset}
-            className="flex items-center gap-2 border border-white/10 text-on-surface-variant font-mono text-xs font-bold px-4 py-2 rounded-sm hover:bg-white/5 transition-all uppercase"
+            className="flex items-center gap-2 border border-hairline text-on-surface-variant font-mono text-xs font-bold px-4 py-2 rounded-sm hover:bg-surface-2 transition-all uppercase"
           >
             <RotateCcw className="w-3 h-3" />
             Reset Defaults
@@ -119,7 +119,7 @@ export default function PresetsPage() {
                     value={preset.linearPercent}
                     onChange={(e) => handleUpdate(index, "linearPercent", parseInt(e.target.value) || 0)}
                     min={0} max={100}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
                   />
                 </div>
                 <div>
@@ -129,7 +129,7 @@ export default function PresetsPage() {
                     value={preset.milestonePercent}
                     onChange={(e) => handleUpdate(index, "milestonePercent", parseInt(e.target.value) || 0)}
                     min={0} max={100}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
                   />
                 </div>
                 <div>
@@ -139,13 +139,13 @@ export default function PresetsPage() {
                     value={preset.cliffPercent}
                     onChange={(e) => handleUpdate(index, "cliffPercent", parseInt(e.target.value) || 0)}
                     min={0} max={100}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
                   />
                 </div>
               </div>
 
               <div className="mt-4">
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden flex">
+                <div className="h-2 bg-surface-2 rounded-full overflow-hidden flex">
                   <div className="h-full bg-linear-to-r from-mint to-solana-green transition-all" style={{ width: `${preset.linearPercent}%` }} />
                   <div className="h-full bg-mint transition-all" style={{ width: `${preset.milestonePercent}%` }} />
                   <div className="h-full bg-solana-green transition-all" style={{ width: `${preset.cliffPercent}%` }} />
@@ -224,7 +224,7 @@ function AddPresetForm({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+      className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm flex items-center justify-center p-6"
       onClick={onClose}
     >
       <motion.div
@@ -252,7 +252,7 @@ function AddPresetForm({
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="My Custom Split"
-                className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
+                className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
               />
             </div>
             <div>
@@ -264,7 +264,7 @@ function AddPresetForm({
                 value={name}
                 onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
                 placeholder="my_custom_split"
-                className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
+                className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
               />
             </div>
           </div>
@@ -277,7 +277,7 @@ function AddPresetForm({
                 value={linear}
                 onChange={(e) => setLinear(parseInt(e.target.value) || 0)}
                 min={0} max={100}
-                className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
+                className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
               />
             </div>
             <div>
@@ -287,7 +287,7 @@ function AddPresetForm({
                 value={milestone}
                 onChange={(e) => setMilestone(parseInt(e.target.value) || 0)}
                 min={0} max={100}
-                className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
+                className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
               />
             </div>
             <div>
@@ -297,12 +297,12 @@ function AddPresetForm({
                 value={cliff}
                 onChange={(e) => setCliff(parseInt(e.target.value) || 0)}
                 min={0} max={100}
-                className="w-full bg-white/3 border border-white/10 rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
+                className="w-full bg-surface-1 border border-hairline rounded-sm px-4 py-3 font-mono text-sm text-mint focus:outline-none focus:border-mint/40 transition-colors"
               />
             </div>
           </div>
 
-          <div className="h-2 bg-white/5 rounded-full overflow-hidden flex">
+          <div className="h-2 bg-surface-2 rounded-full overflow-hidden flex">
             <div className="h-full bg-linear-to-r from-mint to-solana-green transition-all" style={{ width: `${linear}%` }} />
             <div className="h-full bg-mint transition-all" style={{ width: `${milestone}%` }} />
             <div className="h-full bg-solana-green transition-all" style={{ width: `${cliff}%` }} />

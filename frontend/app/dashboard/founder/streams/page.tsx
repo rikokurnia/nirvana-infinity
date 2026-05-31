@@ -164,7 +164,7 @@ export default function FounderStreamsPage() {
               <button
                 onClick={() => setConfirmId(null)}
                 disabled={isCancelling}
-                className="font-mono text-xs font-bold px-4 py-2 rounded-sm border border-white/10 text-on-surface-variant hover:bg-white/5 transition-all uppercase disabled:opacity-50"
+                className="font-mono text-xs font-bold px-4 py-2 rounded-sm border border-hairline text-on-surface-variant hover:bg-surface-2 transition-all uppercase disabled:opacity-50"
               >
                 Keep Stream
               </button>

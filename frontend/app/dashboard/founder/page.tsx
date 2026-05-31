@@ -141,8 +141,8 @@ export default function FounderPage() {
                       <span className="font-mono text-[9px] text-on-surface-variant/40 uppercase tracking-widest">Time</span>
                       <span className="font-mono text-[9px] text-on-surface-variant/40">{timeProgress}%</span>
                     </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-white/10 transition-all" style={{ width: `${timeProgress}%` }} />
+                    <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                      <div className="h-full bg-surface-3 transition-all" style={{ width: `${timeProgress}%` }} />
                     </div>
                   </div>
                   <div className="text-right shrink-0">

@@ -128,7 +128,7 @@ export default function AIChat() {
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed bottom-24 right-6 z-50 w-full max-w-sm glass-plate rounded-lg flex flex-col overflow-hidden border-mint/20 h-[480px]"
           >
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
+            <div className="flex items-center justify-between p-4 border-b border-hairline-soft">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-mint" />
                 <span className="font-headline font-bold text-sm">Nirvana AI</span>
@@ -151,7 +151,7 @@ export default function AIChat() {
                     className={`max-w-[85%] px-4 py-2 rounded-lg text-sm ${
                       msg.role === "user"
                         ? "bg-mint text-black font-mono"
-                        : "bg-white/5 text-on-surface font-sans"
+                        : "bg-surface-2 text-on-surface font-sans"
                     }`}
                   >
                     {msg.content}
@@ -160,7 +160,7 @@ export default function AIChat() {
               ))}
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-white/5 px-4 py-2 rounded-lg">
+                  <div className="bg-surface-2 px-4 py-2 rounded-lg">
                     <span className="font-mono text-xs text-mint animate-pulse">thinking...</span>
                   </div>
                 </div>
@@ -168,7 +168,7 @@ export default function AIChat() {
               <div ref={bottomRef} />
             </div>
 
-            <div className="p-3 border-t border-white/5">
+            <div className="p-3 border-t border-hairline-soft">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -180,7 +180,7 @@ export default function AIChat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask about vesting, streams..."
-                  className="flex-1 bg-white/3 border border-white/10 rounded-sm px-3 py-2 font-mono text-xs text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
+                  className="flex-1 bg-surface-1 border border-hairline rounded-sm px-3 py-2 font-mono text-xs text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
                   disabled={loading}
                 />
                 <button

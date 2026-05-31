@@ -19,20 +19,15 @@ import {
 } from "@/lib/stream-calculator";
 import { FaucetButton } from "@/app/components/faucet-button";
 import { useAuth } from "@/app/providers/privy-provider";
+import { getConnection } from "@/lib/anchor";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { PublicKey } from "@solana/web3.js";
+import { MOCK_TOKENS } from "@/lib/tokens";
 
-// mUSDC = devnet mock USDC minted by the in-app faucet. Default token so the
-// founder→worker flow works end-to-end without wrapping SOL. Falls back to the
-// SOL mint only if the env var is missing (faucet not set up yet).
-const MOCK_USDC_MINT =
-  process.env.NEXT_PUBLIC_MOCK_USDC_MINT ??
-  "So11111111111111111111111111111111111111112";
-
-const COMMON_TOKENS = [
-  { symbol: "mUSDC", mint: MOCK_USDC_MINT },
-  { symbol: "SOL", mint: "So11111111111111111111111111111111111111112" },
-  { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
-  { symbol: "BONK", mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
-];
+// Streamable tokens = the devnet mock SPL tokens the in-app faucet can mint
+// (see lib/tokens.ts). Every option here is fundable, so create_stream never
+// fails on an empty/missing source token account.
+const COMMON_TOKENS = MOCK_TOKENS;
 
 interface RecipientRow {
   id: string;
@@ -59,7 +54,7 @@ export default function CreateStreamPage() {
   // background stream list fetches over the flaky RPC and would freeze the button.
   const [submitting, setSubmitting] = useState(false);
 
-  const [tokenSymbol, setTokenSymbol] = useState("mUSDC");
+  const [tokenSymbol, setTokenSymbol] = useState(COMMON_TOKENS[0]?.symbol ?? "mUSDC");
   const [selectedPreset, setSelectedPreset] = useState<StreamPreset>(presets[0]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -129,6 +124,33 @@ export default function CreateStreamPage() {
     setStuckVault(null);
     setSubmitting(true);
     try {
+      // Pre-flight: make sure the founder actually holds enough of this token,
+      // otherwise create_stream reverts on an empty/missing source account.
+      // Faucet it from the "Get test tokens" button if short.
+      if (user?.wallet?.address) {
+        try {
+          const ata = getAssociatedTokenAddressSync(
+            new PublicKey(tokenMint),
+            new PublicKey(user.wallet.address)
+          );
+          const bal = await getConnection().getTokenAccountBalance(ata);
+          const have = bal.value.uiAmount ?? 0;
+          if (have < totalAmount) {
+            setSubmitError(
+              `Not enough ${tokenSymbol}: you have ${have.toLocaleString()} but this needs ${totalAmount.toLocaleString()}. Use "Get test tokens" to fund your wallet first.`
+            );
+            setSubmitting(false);
+            return;
+          }
+        } catch {
+          // No token account at all → definitely unfunded.
+          setSubmitError(
+            `You don't hold any ${tokenSymbol} yet. Use "Get test tokens" to fund your wallet first.`
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
       for (const r of validRecipients) {
         const split = getSplit(r.amount);
         if (!split) continue;
@@ -206,13 +228,13 @@ export default function CreateStreamPage() {
                 <Sparkles className="w-4 h-4 text-mint" />
                 Stream Settings
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
                   <label className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest block mb-2">Token</label>
                   <select
                     value={tokenSymbol}
                     onChange={(e) => setTokenSymbol(e.target.value)}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors appearance-none cursor-pointer"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors appearance-none cursor-pointer"
                   >
                     {COMMON_TOKENS.map((t) => (
                       <option key={t.symbol} value={t.symbol} className="bg-surface text-on-surface">{t.symbol}</option>
@@ -227,7 +249,7 @@ export default function CreateStreamPage() {
                       const p = presets.find((x) => x.name === e.target.value);
                       if (p) setSelectedPreset(p);
                     }}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-xs text-on-surface focus:outline-none focus:border-mint/40 transition-colors appearance-none cursor-pointer"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-xs text-on-surface focus:outline-none focus:border-mint/40 transition-colors appearance-none cursor-pointer"
                   >
                     {presets.map((p) => (
                       <option key={p.name} value={p.name} className="bg-surface text-on-surface">{p.label}</option>
@@ -240,7 +262,7 @@ export default function CreateStreamPage() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
                     required
                   />
                 </div>
@@ -250,7 +272,7 @@ export default function CreateStreamPage() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
                     required
                   />
                 </div>
@@ -264,7 +286,7 @@ export default function CreateStreamPage() {
                     onChange={(e) => setCliffDate(e.target.value)}
                     min={startDate || undefined}
                     max={endDate || undefined}
-                    className="w-full bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
+                    className="w-full bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface focus:outline-none focus:border-mint/40 transition-colors"
                   />
                 </div>
               </div>
@@ -288,7 +310,7 @@ export default function CreateStreamPage() {
 
               <div className="space-y-3">
                 {recipients.map((r, i) => (
-                  <div key={r.id} className="flex items-center gap-3">
+                  <div key={r.id} className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <span className="font-mono text-xs text-on-surface-variant/30 w-4 shrink-0">
                       {i + 1}
                     </span>
@@ -297,7 +319,7 @@ export default function CreateStreamPage() {
                       value={r.address}
                       onChange={(e) => updateRecipient(r.id, "address", e.target.value)}
                       placeholder="Recipient wallet address"
-                      className="flex-1 bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
+                      className="flex-1 min-w-[160px] bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
                     />
                     <input
                       type="number"
@@ -306,7 +328,7 @@ export default function CreateStreamPage() {
                       placeholder="Amount"
                       step="any"
                       min="0"
-                      className="w-32 bg-white/3 border border-white/10 rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
+                      className="w-full sm:w-32 bg-surface-1 border border-hairline rounded-sm px-3 py-2.5 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-mint/40 transition-colors"
                     />
                     <button
                       type="button"
@@ -321,7 +343,7 @@ export default function CreateStreamPage() {
               </div>
 
               {validRecipients.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                <div className="mt-4 pt-4 border-t border-hairline-soft flex items-center justify-between">
                   <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">
                     Total Across All
                   </span>
@@ -397,14 +419,14 @@ export default function CreateStreamPage() {
                     </p>
                   </div>
 
-                  <div className="h-2 bg-white/5 rounded-full overflow-hidden flex">
+                  <div className="h-2 bg-surface-2 rounded-full overflow-hidden flex">
                     <div className="h-full bg-linear-to-r from-mint to-solana-green transition-all" style={{ width: `${selectedPreset.linearPercent}%` }} />
                     <div className="h-full bg-mint transition-all" style={{ width: `${selectedPreset.milestonePercent}%` }} />
                     <div className="h-full bg-solana-green transition-all" style={{ width: `${selectedPreset.cliffPercent}%` }} />
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between py-2 border-b border-white/5">
+                    <div className="flex items-center justify-between py-2 border-b border-hairline-soft">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-sm bg-linear-to-r from-mint to-solana-green" />
                         <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Linear</span>
@@ -414,7 +436,7 @@ export default function CreateStreamPage() {
                         <p className="font-mono text-[9px] text-on-surface-variant/50">{selectedPreset.linearPercent}%</p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b border-white/5">
+                    <div className="flex items-center justify-between py-2 border-b border-hairline-soft">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-sm bg-mint" />
                         <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Milestone</span>
@@ -454,7 +476,7 @@ export default function CreateStreamPage() {
                 <h3 className="font-headline text-base font-bold tracking-tight mb-4">Recipients</h3>
                 <div className="space-y-2">
                   {validRecipients.map((r, i) => (
-                    <div key={r.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                    <div key={r.id} className="flex items-center justify-between py-1.5 border-b border-hairline-soft last:border-0">
                       <div>
                         <p className="font-mono text-xs text-on-surface">{r.address.slice(0, 6)}...{r.address.slice(-4)}</p>
                       </div>

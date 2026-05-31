@@ -179,7 +179,7 @@ export default function WorkerStreamDetailPage() {
       >
         <h3 className="font-headline text-base font-bold tracking-tight mb-4">Your Split</h3>
         <div className="space-y-3">
-          <div className="flex items-center justify-between py-2 border-b border-white/5">
+          <div className="flex items-center justify-between py-2 border-b border-hairline-soft">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-sm bg-linear-to-r from-mint to-solana-green" />
               <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Linear</span>
@@ -189,7 +189,7 @@ export default function WorkerStreamDetailPage() {
               <p className="font-mono text-[10px] text-on-surface-variant/50">paid over time</p>
             </div>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-white/5">
+          <div className="flex items-center justify-between py-2 border-b border-hairline-soft">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-sm bg-mint" />
               <span className="font-mono text-xs text-on-surface-variant uppercase tracking-widest">Milestone</span>
@@ -232,7 +232,7 @@ export default function WorkerStreamDetailPage() {
               </span>
               <span className="font-mono text-xs text-mint font-bold">{linearPct.toFixed(1)}%</span>
             </div>
-            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${linearPct}%` }}
@@ -255,12 +255,12 @@ export default function WorkerStreamDetailPage() {
                 {stream.milestoneAchieved ? "ACHIEVED" : "LOCKED"}
               </span>
             </div>
-            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: stream.milestoneAchieved ? "100%" : "0%" }}
                 transition={{ duration: 1, delay: 0.6 }}
-                className={`h-full ${stream.milestoneAchieved ? "bg-mint shadow-[0_0_10px_rgba(47,243,200,0.5)]" : "bg-white/10"}`}
+                className={`h-full ${stream.milestoneAchieved ? "bg-mint shadow-[0_0_10px_rgba(47,243,200,0.5)]" : "bg-surface-3"}`}
               />
             </div>
             <div className="flex justify-between mt-1">
@@ -269,12 +269,12 @@ export default function WorkerStreamDetailPage() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5">
+          <div className="pt-4 border-t border-hairline-soft">
             <div className="flex justify-between mb-2">
               <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-widest">Total Progress</span>
               <span className="font-mono text-xs text-mint font-bold">{totalPct.toFixed(1)}%</span>
             </div>
-            <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${totalPct}%` }}

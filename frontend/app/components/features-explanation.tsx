@@ -2,7 +2,7 @@
 
 export default function FeaturesExplanation() {
   return (
-    <section className="max-w-4xl mx-auto py-32 px-6 text-center border-y border-white/5 mt-24">
+    <section className="max-w-4xl mx-auto py-32 px-6 text-center border-y border-hairline-soft mt-24">
       <h2 className="font-headline text-4xl mb-8 font-bold tracking-tight">
         How Nirvana Works
       </h2>
