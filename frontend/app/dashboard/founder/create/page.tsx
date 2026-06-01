@@ -19,7 +19,7 @@ import {
 } from "@/lib/stream-calculator";
 import { FaucetButton } from "@/app/components/faucet-button";
 import { useAuth } from "@/app/providers/privy-provider";
-import { getTokenUiBalance, getChainTime } from "@/lib/anchor";
+import { getTokenUiBalance } from "@/lib/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { MOCK_TOKENS } from "@/lib/tokens";
 
@@ -86,12 +86,12 @@ export default function CreateStreamPage() {
   // The date picker yields midnight of the chosen day, which for "today" is
   // already in the past — the program rejects start_time < now. Clamp to a
   // small buffer ahead of now so the tx is still valid by the time it lands.
-  // `baseNow` should be the on-chain clock for the real submit (devnet drifts
-  // from local time); falls back to local time for the live preview.
-  const START_BUFFER = 180; // seconds ahead of `baseNow` to survive send + drift
-  const effectiveStart = (baseNow = Math.floor(Date.now() / 1000)) => {
+  // Generous local buffer so the start stays ahead of the validator clock
+  // (devnet drift + slow send) without spending an RPC call to read chain time.
+  const START_BUFFER = 300; // 5 min
+  const effectiveStart = () => {
     const raw = Math.floor(new Date(startDate).getTime() / 1000);
-    return Math.max(raw, baseNow + START_BUFFER);
+    return Math.max(raw, Math.floor(Date.now() / 1000) + START_BUFFER);
   };
 
   // Resolve the cliff timestamp: user-picked date wins if it's a valid value in
@@ -124,9 +124,7 @@ export default function CreateStreamPage() {
     setStuckVault(null);
     setSubmitting(true);
     try {
-      // Base the start on the validator clock (not Date.now()) so devnet clock
-      // drift can't push start_time into the past → StartTimeInPast revert.
-      const start = effectiveStart(await getChainTime());
+      const start = effectiveStart();
       // Pre-flight: make sure the founder actually holds enough of this token,
       // otherwise create_stream reverts on an empty/missing source account.
       // Faucet it from the "Get test tokens" button if short.
