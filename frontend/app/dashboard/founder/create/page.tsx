@@ -19,8 +19,6 @@ import {
 } from "@/lib/stream-calculator";
 import { FaucetButton } from "@/app/components/faucet-button";
 import { useAuth } from "@/app/providers/privy-provider";
-import { getTokenUiBalance } from "@/lib/anchor";
-import { PublicKey } from "@solana/web3.js";
 import { MOCK_TOKENS } from "@/lib/tokens";
 
 // Streamable tokens = the devnet mock SPL tokens the in-app faucet can mint
@@ -125,27 +123,6 @@ export default function CreateStreamPage() {
     setSubmitting(true);
     try {
       const start = effectiveStart();
-      // Pre-flight: make sure the founder actually holds enough of this token,
-      // otherwise create_stream reverts on an empty/missing source account.
-      // Faucet it from the "Get test tokens" button if short.
-      if (user?.wallet?.address) {
-        // Returns null when the balance can't be read (RPC 429/timeout). In that
-        // case fail-open: skip the gate and let create_stream itself enforce the
-        // balance, rather than wrongly claiming the wallet is unfunded.
-        const have = await getTokenUiBalance(
-          new PublicKey(tokenMint),
-          new PublicKey(user.wallet.address)
-        );
-        if (have !== null && have < totalAmount) {
-          setSubmitError(
-            have === 0
-              ? `You don't hold any ${tokenSymbol} yet. Use "Get test tokens" to fund your wallet first.`
-              : `Not enough ${tokenSymbol}: you have ${have.toLocaleString()} but this needs ${totalAmount.toLocaleString()}. Use "Get test tokens" to fund your wallet first.`
-          );
-          setSubmitting(false);
-          return;
-        }
-      }
       for (const r of validRecipients) {
         const split = getSplit(r.amount, start);
         if (!split) continue;

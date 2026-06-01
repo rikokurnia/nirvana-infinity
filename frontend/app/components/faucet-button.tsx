@@ -39,9 +39,12 @@ export function FaucetButton({ className = "" }: { className?: string }) {
     }
   }, [walletPubkey]);
 
+  // Only read balances when the dropdown is actually open (and after a mint).
+  // Polling on every mount fired 4 RPC calls that competed with the transaction
+  // burst and tripped the RPC's per-second limit.
   useEffect(() => {
-    refreshBalances();
-  }, [refreshBalances]);
+    if (open) refreshBalances();
+  }, [open, refreshBalances]);
 
   const mint = async (mintAddr: string) => {
     if (!walletPubkey || statuses[mintAddr] === "loading") return;
