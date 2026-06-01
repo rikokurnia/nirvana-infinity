@@ -19,7 +19,7 @@ import {
 } from "@/lib/stream-calculator";
 import { FaucetButton } from "@/app/components/faucet-button";
 import { useAuth } from "@/app/providers/privy-provider";
-import { getTokenUiBalance } from "@/lib/anchor";
+import { getTokenUiBalance, getChainTime } from "@/lib/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { MOCK_TOKENS } from "@/lib/tokens";
 
@@ -86,10 +86,12 @@ export default function CreateStreamPage() {
   // The date picker yields midnight of the chosen day, which for "today" is
   // already in the past — the program rejects start_time < now. Clamp to a
   // small buffer ahead of now so the tx is still valid by the time it lands.
-  const effectiveStart = () => {
+  // `baseNow` should be the on-chain clock for the real submit (devnet drifts
+  // from local time); falls back to local time for the live preview.
+  const START_BUFFER = 180; // seconds ahead of `baseNow` to survive send + drift
+  const effectiveStart = (baseNow = Math.floor(Date.now() / 1000)) => {
     const raw = Math.floor(new Date(startDate).getTime() / 1000);
-    const now = Math.floor(Date.now() / 1000);
-    return Math.max(raw, now + 120);
+    return Math.max(raw, baseNow + START_BUFFER);
   };
 
   // Resolve the cliff timestamp: user-picked date wins if it's a valid value in
@@ -102,9 +104,9 @@ export default function CreateStreamPage() {
     return Math.min(Math.max(picked, start), end);
   };
 
-  const getSplit = (amount: string) => {
+  const getSplit = (amount: string, startOverride?: number) => {
     if (!amount || !startDate || !endDate) return null;
-    const start = effectiveStart();
+    const start = startOverride ?? effectiveStart();
     const end = Math.floor(new Date(endDate).getTime() / 1000);
     if (start >= end) return null;
     const split = calculateStreamSplit(parseFloat(amount), start, end, selectedPreset);
@@ -115,7 +117,6 @@ export default function CreateStreamPage() {
     e.preventDefault();
     if (validRecipients.length === 0 || !startDate || !endDate) return;
 
-    const start = effectiveStart();
     const end = Math.floor(new Date(endDate).getTime() / 1000);
     const tokenMint = COMMON_TOKENS.find((t) => t.symbol === tokenSymbol)?.mint || COMMON_TOKENS[0].mint;
 
@@ -123,6 +124,9 @@ export default function CreateStreamPage() {
     setStuckVault(null);
     setSubmitting(true);
     try {
+      // Base the start on the validator clock (not Date.now()) so devnet clock
+      // drift can't push start_time into the past → StartTimeInPast revert.
+      const start = effectiveStart(await getChainTime());
       // Pre-flight: make sure the founder actually holds enough of this token,
       // otherwise create_stream reverts on an empty/missing source account.
       // Faucet it from the "Get test tokens" button if short.
@@ -145,7 +149,7 @@ export default function CreateStreamPage() {
         }
       }
       for (const r of validRecipients) {
-        const split = getSplit(r.amount);
+        const split = getSplit(r.amount, start);
         if (!split) continue;
         const signature = await handleCreateStream({
           recipient: r.address.trim(),

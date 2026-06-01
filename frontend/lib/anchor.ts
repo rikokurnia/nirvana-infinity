@@ -97,6 +97,23 @@ async function withRpcRetry<T>(
   return onGiveUp();
 }
 
+/** The validator's wall clock (unix seconds), which the program compares
+ *  start_time against. Devnet's clock drifts from local time by minutes, so
+ *  computing "start now + buffer" off Date.now() trips StartTimeInPast. Read
+ *  the chain clock instead; fall back to local time only if RPC fails. */
+export async function getChainTime(
+  connection: Connection = getConnection()
+): Promise<number> {
+  return withRpcRetry(
+    async () => {
+      const slot = await connection.getSlot();
+      const t = await connection.getBlockTime(slot);
+      return t ?? Math.floor(Date.now() / 1000);
+    },
+    () => Math.floor(Date.now() / 1000)
+  );
+}
+
 /** Decimals for a mint. Mock tokens are known statically (no RPC needed);
  *  unknown mints fall back to a retrying getMint, then to 9. */
 export async function getMintDecimals(
