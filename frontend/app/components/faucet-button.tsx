@@ -7,10 +7,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Coins, Loader2, Check, ChevronDown } from "lucide-react";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { useNirvanaProgram } from "@/hooks/use-nirvana-program";
-import { getConnection } from "@/lib/anchor";
+import { getConnection, getTokenUiBalance } from "@/lib/anchor";
 import { MOCK_TOKENS } from "@/lib/tokens";
 
 type TokenStatus = "idle" | "loading" | "done";
@@ -25,22 +24,19 @@ export function FaucetButton({ className = "" }: { className?: string }) {
   const refreshBalances = useCallback(async () => {
     if (!walletPubkey) return;
     const conn = getConnection();
-    const next: Record<string, number> = {};
-    await Promise.all(
-      MOCK_TOKENS.map(async (t) => {
-        try {
-          const ata = getAssociatedTokenAddressSync(
-            new PublicKey(t.mint),
-            walletPubkey
-          );
-          const res = await conn.getTokenAccountBalance(ata);
-          next[t.mint] = res.value.uiAmount ?? 0;
-        } catch {
-          next[t.mint] = 0; // no token account yet → zero
-        }
-      })
-    );
-    setBalances(next);
+    // Read sequentially (not Promise.all) to avoid hammering the public devnet
+    // RPC, which 429s on bursts. getTokenUiBalance retries with backoff and
+    // returns null on transient failure (keep the prior value, don't show 0).
+    for (const t of MOCK_TOKENS) {
+      const bal = await getTokenUiBalance(
+        new PublicKey(t.mint),
+        walletPubkey,
+        conn
+      );
+      if (bal !== null) {
+        setBalances((prev) => ({ ...prev, [t.mint]: bal }));
+      }
+    }
   }, [walletPubkey]);
 
   useEffect(() => {

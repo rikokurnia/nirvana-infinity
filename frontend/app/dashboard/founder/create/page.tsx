@@ -19,8 +19,7 @@ import {
 } from "@/lib/stream-calculator";
 import { FaucetButton } from "@/app/components/faucet-button";
 import { useAuth } from "@/app/providers/privy-provider";
-import { getConnection } from "@/lib/anchor";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getTokenUiBalance } from "@/lib/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { MOCK_TOKENS } from "@/lib/tokens";
 
@@ -128,24 +127,18 @@ export default function CreateStreamPage() {
       // otherwise create_stream reverts on an empty/missing source account.
       // Faucet it from the "Get test tokens" button if short.
       if (user?.wallet?.address) {
-        try {
-          const ata = getAssociatedTokenAddressSync(
-            new PublicKey(tokenMint),
-            new PublicKey(user.wallet.address)
-          );
-          const bal = await getConnection().getTokenAccountBalance(ata);
-          const have = bal.value.uiAmount ?? 0;
-          if (have < totalAmount) {
-            setSubmitError(
-              `Not enough ${tokenSymbol}: you have ${have.toLocaleString()} but this needs ${totalAmount.toLocaleString()}. Use "Get test tokens" to fund your wallet first.`
-            );
-            setSubmitting(false);
-            return;
-          }
-        } catch {
-          // No token account at all → definitely unfunded.
+        // Returns null when the balance can't be read (RPC 429/timeout). In that
+        // case fail-open: skip the gate and let create_stream itself enforce the
+        // balance, rather than wrongly claiming the wallet is unfunded.
+        const have = await getTokenUiBalance(
+          new PublicKey(tokenMint),
+          new PublicKey(user.wallet.address)
+        );
+        if (have !== null && have < totalAmount) {
           setSubmitError(
-            `You don't hold any ${tokenSymbol} yet. Use "Get test tokens" to fund your wallet first.`
+            have === 0
+              ? `You don't hold any ${tokenSymbol} yet. Use "Get test tokens" to fund your wallet first.`
+              : `Not enough ${tokenSymbol}: you have ${have.toLocaleString()} but this needs ${totalAmount.toLocaleString()}. Use "Get test tokens" to fund your wallet first.`
           );
           setSubmitting(false);
           return;

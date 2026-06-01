@@ -32,6 +32,50 @@ export function getConnection(): Connection {
   return new Connection(RPC_URL, "confirmed");
 }
 
+/** True when an RPC error means "this token account doesn't exist yet" (vs. a
+ *  transient network/429 failure, which must NOT be read as a zero balance). */
+function isAccountMissing(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message ?? err);
+  return /could not find account|account does not exist|invalid param|account not found/i.test(
+    msg
+  );
+}
+
+/** True for transient RPC failures worth retrying (rate limit / network). */
+function isTransientRpcError(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message ?? err);
+  return /429|too many requests|rate limit|fetch failed|timeout|503|502|ECONNRESET/i.test(
+    msg
+  );
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Read an SPL token balance (UI units) with backoff on rate limits.
+ *  Returns the balance, or `null` when the balance can't be determined because
+ *  of a transient RPC error (so callers can fail-open instead of blocking). */
+export async function getTokenUiBalance(
+  mint: PublicKey,
+  owner: PublicKey,
+  connection: Connection = getConnection()
+): Promise<number | null> {
+  const ata = getAssociatedTokenAddressSync(mint, owner);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const bal = await connection.getTokenAccountBalance(ata);
+      return bal.value.uiAmount ?? 0;
+    } catch (err) {
+      if (isAccountMissing(err)) return 0; // genuinely unfunded
+      lastErr = err;
+      if (!isTransientRpcError(err)) break;
+      await sleep(400 * 2 ** attempt); // 400 / 800 / 1600ms backoff
+    }
+  }
+  console.warn("getTokenUiBalance: could not read balance", lastErr);
+  return null; // couldn't determine — caller should fail-open
+}
+
 /** Minimal wallet shape AnchorProvider needs (satisfied by the Privy bridge). */
 export interface SignerWallet {
   publicKey: PublicKey;
