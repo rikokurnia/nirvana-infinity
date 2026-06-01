@@ -13,13 +13,20 @@ import {
 import { motion } from "motion/react";
 import { ChevronRight, Clock, Target, Wallet, Shield, Calendar } from "lucide-react";
 import Link from "next/link";
+import {
+  StreamListSkeleton,
+  StreamsEmpty,
+  StreamsError,
+} from "@/app/components/stream-states";
 
 export default function WorkerStreamsPage() {
-  const { getWorkerStreams } = useStreams();
+  const { getWorkerStreams, loading, error, refresh } = useStreams();
   const { user } = useAuth();
 
   const workerAddress = user?.wallet?.address || "";
   const myStreams = getWorkerStreams(workerAddress);
+  const showSkeleton = loading && myStreams.length === 0;
+  const showError = !!error && myStreams.length === 0;
 
   return (
     <div>
@@ -30,10 +37,12 @@ export default function WorkerStreamsPage() {
         </p>
       </div>
 
-      {myStreams.length === 0 ? (
-        <div className="glass-plate rounded-lg p-12 text-center">
-          <p className="font-mono text-sm text-on-surface-variant">No streams yet</p>
-        </div>
+      {showError ? (
+        <StreamsError message={error} onRetry={refresh} />
+      ) : showSkeleton ? (
+        <StreamListSkeleton />
+      ) : myStreams.length === 0 ? (
+        <StreamsEmpty message="No streams yet" />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {myStreams.map((stream) => {

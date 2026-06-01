@@ -68,9 +68,11 @@ function toErrorMessage(err: unknown): string {
 }
 
 export function useStreams() {
-  const { program, walletPubkey } = useNirvanaProgram();
+  const { program, walletPubkey, ready } = useNirvanaProgram();
   const [streams, setStreams] = useState<DistributionState[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Start in the loading state so views render skeletons on first mount instead
+  // of flashing "No streams yet" before the initial on-chain fetch resolves.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -91,7 +93,13 @@ export function useStreams() {
     let cancelled = false;
     (async () => {
       if (!program || !walletPubkey) {
-        if (!cancelled) setStreams([]);
+        // No wallet yet. Keep showing the loading state until Privy is `ready`;
+        // only then is an empty list the real answer rather than "still
+        // connecting".
+        if (!cancelled) {
+          setStreams([]);
+          setLoading(!ready);
+        }
         return;
       }
       setLoading(true);
@@ -108,7 +116,7 @@ export function useStreams() {
     return () => {
       cancelled = true;
     };
-  }, [program, walletPubkey]);
+  }, [program, walletPubkey, ready]);
 
   const getWorkerStreams = useCallback(
     (workerAddress: string): DistributionState[] =>

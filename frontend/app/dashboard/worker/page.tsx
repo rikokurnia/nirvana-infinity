@@ -15,13 +15,21 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  StatCardsSkeleton,
+  StreamListSkeleton,
+  StreamsEmpty,
+  StreamsError,
+} from "@/app/components/stream-states";
 
 export default function WorkerPage() {
-  const { getWorkerStreams } = useStreams();
+  const { getWorkerStreams, loading, error, refresh } = useStreams();
   const { user } = useAuth();
 
   const workerAddress = user?.wallet?.address || "";
   const myStreams = getWorkerStreams(workerAddress);
+  const showSkeleton = loading && myStreams.length === 0;
+  const showError = !!error && myStreams.length === 0;
   const activeStreams = myStreams.filter((s) => !s.isCancelled);
   const totalClaimed = myStreams.reduce((sum, s) => sum + s.claimedAmount, BigInt(0));
   const totalClaimable = activeStreams.reduce(
@@ -39,26 +47,32 @@ export default function WorkerPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-        <StatCard icon={Layers} label="Active Streams" value={activeStreams.length.toString()} />
-        <StatCard
-          icon={ArrowUpRight}
-          label="Claimable Now"
-          value={formatTokenAmount(totalClaimable, myStreams[0]?.tokenDecimals ?? 9)}
-          highlight
-        />
-        <StatCard icon={Wallet} label="Total Earned" value={formatTokenAmount(totalClaimed, myStreams[0]?.tokenDecimals ?? 9)} />
-        <StatCard icon={Target} label="Pending Milestones" value={pendingMilestones.toString()} />
-      </div>
+      {showSkeleton ? (
+        <StatCardsSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+          <StatCard icon={Layers} label="Active Streams" value={activeStreams.length.toString()} />
+          <StatCard
+            icon={ArrowUpRight}
+            label="Claimable Now"
+            value={formatTokenAmount(totalClaimable, myStreams[0]?.tokenDecimals ?? 9)}
+            highlight
+          />
+          <StatCard icon={Wallet} label="Total Earned" value={formatTokenAmount(totalClaimed, myStreams[0]?.tokenDecimals ?? 9)} />
+          <StatCard icon={Target} label="Pending Milestones" value={pendingMilestones.toString()} />
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-headline text-xl font-bold tracking-tight">My Streams</h2>
       </div>
 
-      {myStreams.length === 0 ? (
-        <div className="glass-plate rounded-lg p-12 text-center">
-          <p className="font-mono text-sm text-on-surface-variant">No streams assigned yet</p>
-        </div>
+      {showError ? (
+        <StreamsError message={error} onRetry={refresh} />
+      ) : showSkeleton ? (
+        <StreamListSkeleton />
+      ) : myStreams.length === 0 ? (
+        <StreamsEmpty message="No streams assigned yet" />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {myStreams.map((stream) => {

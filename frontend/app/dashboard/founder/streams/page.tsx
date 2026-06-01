@@ -7,12 +7,20 @@ import { formatTokenAmount, calculateClaimable, formatAddress, formatDate } from
 import { useMemo } from "react";
 import { motion } from "motion/react";
 import { Ban } from "lucide-react";
+import {
+  StreamListSkeleton,
+  StreamsEmpty,
+  StreamsError,
+} from "@/app/components/stream-states";
+import Link from "next/link";
 
 export default function FounderStreamsPage() {
-  const { getFounderStreams, handleCancel } = useStreams();
+  const { getFounderStreams, handleCancel, loading, error, refresh } = useStreams();
   const { user } = useAuth();
   // Filter to streams this wallet created — never recipient-only ones.
   const streams = getFounderStreams(user?.wallet?.address || "");
+  const showSkeleton = loading && streams.length === 0;
+  const showError = !!error && streams.length === 0;
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
   // Local flag — shared `loading` from useStreams stays true during background
@@ -74,10 +82,22 @@ export default function FounderStreamsPage() {
         </p>
       </div>
 
-      {streams.length === 0 ? (
-        <div className="glass-plate rounded-lg p-12 text-center">
-          <p className="font-mono text-sm text-on-surface-variant">No streams created yet</p>
-        </div>
+      {showError ? (
+        <StreamsError message={error} onRetry={refresh} />
+      ) : showSkeleton ? (
+        <StreamListSkeleton />
+      ) : streams.length === 0 ? (
+        <StreamsEmpty
+          message="No streams created yet"
+          action={
+            <Link
+              href="/dashboard/founder/create"
+              className="text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors"
+            >
+              Create your first stream
+            </Link>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {streams.map((stream) => {

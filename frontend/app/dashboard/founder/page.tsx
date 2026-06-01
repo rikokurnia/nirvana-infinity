@@ -18,14 +18,23 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { FaucetButton } from "@/app/components/faucet-button";
+import {
+  StatCardsSkeleton,
+  StreamListSkeleton,
+  StreamsEmpty,
+  StreamsError,
+} from "@/app/components/stream-states";
 
 export default function FounderPage() {
-  const { getFounderStreams } = useStreams();
+  const { getFounderStreams, loading, error, refresh } = useStreams();
   const { user } = useAuth();
   // Only show streams this wallet *created* — recipient-only streams belong
   // on the worker view and must never bleed into the founder dashboard.
   const founderAddress = user?.wallet?.address || "";
   const streams = getFounderStreams(founderAddress);
+  // Show skeletons on first load; keep showing data during background refetches.
+  const showSkeleton = loading && streams.length === 0;
+  const showError = !!error && streams.length === 0;
 
   const activeStreams = streams.filter((s) => !s.isCancelled);
   const totalAllocated = activeStreams.reduce(
@@ -50,21 +59,25 @@ export default function FounderPage() {
         <FaucetButton />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-        <StatCard icon={Layers} label="Active Streams" value={activeStreams.length.toString()} />
-        <StatCard
-          icon={Wallet}
-          label="Total Allocated"
-          value={formatTokenAmount(totalAllocated, streams[0]?.tokenDecimals ?? 9)}
-        />
-        <StatCard
-          icon={ArrowUpRight}
-          label="Total Claimed"
-          value={formatTokenAmount(totalClaimed, streams[0]?.tokenDecimals ?? 9)}
-          highlight
-        />
-        <StatCard icon={Users} label="Recipients" value={uniqueRecipients.toString()} />
-      </div>
+      {showSkeleton ? (
+        <StatCardsSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+          <StatCard icon={Layers} label="Active Streams" value={activeStreams.length.toString()} />
+          <StatCard
+            icon={Wallet}
+            label="Total Allocated"
+            value={formatTokenAmount(totalAllocated, streams[0]?.tokenDecimals ?? 9)}
+          />
+          <StatCard
+            icon={ArrowUpRight}
+            label="Total Claimed"
+            value={formatTokenAmount(totalClaimed, streams[0]?.tokenDecimals ?? 9)}
+            highlight
+          />
+          <StatCard icon={Users} label="Recipients" value={uniqueRecipients.toString()} />
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-headline text-xl font-bold tracking-tight">Active Streams</h2>
@@ -77,16 +90,22 @@ export default function FounderPage() {
         </Link>
       </div>
 
-      {activeStreams.length === 0 ? (
-        <div className="glass-plate rounded-lg p-12 text-center">
-          <p className="font-mono text-sm text-on-surface-variant mb-4">No active streams yet</p>
-          <Link
-            href="/dashboard/founder/create"
-            className="text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors"
-          >
-            Create your first stream
-          </Link>
-        </div>
+      {showError ? (
+        <StreamsError message={error} onRetry={refresh} />
+      ) : showSkeleton ? (
+        <StreamListSkeleton />
+      ) : activeStreams.length === 0 ? (
+        <StreamsEmpty
+          message="No active streams yet"
+          action={
+            <Link
+              href="/dashboard/founder/create"
+              className="text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors"
+            >
+              Create your first stream
+            </Link>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {recentStreams.map((stream) => {
