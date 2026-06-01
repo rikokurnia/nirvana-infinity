@@ -1,7 +1,13 @@
 // On-chain service layer for the Nirvana vesting program.
 // Pure (no React) — call these with a Program built by useNirvanaProgram().
 
-import { AnchorProvider, BN, Program, type Idl } from "@coral-xyz/anchor";
+import {
+  AnchorProvider,
+  BorshAccountsCoder,
+  BN,
+  Program,
+  type Idl,
+} from "@coral-xyz/anchor";
 import {
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
@@ -27,6 +33,12 @@ export const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
 
 export const idl = idlJson as Idl;
+
+// Decode program accounts with a coder built directly from the IDL. The
+// Program's own `program.coder.accounts` throws "Account not found:
+// DistributionState" under Anchor 0.31 (account-name lookup quirk), so we use
+// our own coder which decodes the current account layout correctly.
+const accountsCoder = new BorshAccountsCoder(idl);
 
 export function getConnection(): Connection {
   // Plain connection — let web3.js use the browser's native fetch (and its own
@@ -398,7 +410,11 @@ const TOKEN_SYMBOLS: Record<string, string> = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapAccount(pubkey: PublicKey, acc: any, decimals: number): DistributionState {
-  const mint = acc.tokenMint.toBase58();
+  // Anchor 0.31's IDL keeps field names in snake_case, and BorshAccountsCoder
+  // returns the decoded account with those exact keys — so it's `token_mint`,
+  // not `tokenMint`. Reading the camelCase names gave `undefined` and threw on
+  // `.toBase58()`, which made fetchStreamsFor reject and left the UI empty.
+  const mint = acc.token_mint.toBase58();
   const arbiter = acc.arbiter.toBase58();
   return {
     id: pubkey.toBase58(),
@@ -407,15 +423,15 @@ function mapAccount(pubkey: PublicKey, acc: any, decimals: number): Distribution
     tokenMint: mint,
     tokenSymbol: TOKEN_SYMBOLS[mint] ?? "TOKEN",
     tokenDecimals: decimals,
-    baseAmount: BigInt(acc.baseAmount.toString()),
-    milestoneAmount: BigInt(acc.milestoneAmount.toString()),
-    cliffAmount: BigInt(acc.cliffAmount.toString()),
-    claimedAmount: BigInt(acc.claimedAmount.toString()),
-    startTime: acc.startTime.toNumber(),
-    endTime: acc.endTime.toNumber(),
-    cliffTime: acc.cliffTime.toNumber(),
-    milestoneAchieved: acc.milestoneAchieved,
-    isCancelled: acc.isCancelled,
+    baseAmount: BigInt(acc.base_amount.toString()),
+    milestoneAmount: BigInt(acc.milestone_amount.toString()),
+    cliffAmount: BigInt(acc.cliff_amount.toString()),
+    claimedAmount: BigInt(acc.claimed_amount.toString()),
+    startTime: acc.start_time.toNumber(),
+    endTime: acc.end_time.toNumber(),
+    cliffTime: acc.cliff_time.toNumber(),
+    milestoneAchieved: acc.milestone_achieved,
+    isCancelled: acc.is_cancelled,
     // PublicKey.default (all-1s base58) means "no arbiter".
     arbiter: arbiter === PublicKey.default.toBase58() ? "" : arbiter,
     nonce: BigInt(acc.nonce.toString()),
@@ -427,21 +443,41 @@ export async function fetchStreamsFor(
   program: Program,
   wallet: PublicKey
 ): Promise<DistributionState[]> {
-  // idl is loaded untyped, so the account namespace isn't known statically.
+  // Decode each account individually and skip ones that fail. Legacy streams
+  // created before the nonce upgrade are 8 bytes shorter, and Anchor's
+  // .all() throws on the first undecodable account — which wiped the entire
+  // list (overview showed nothing even though current streams exist).
+  const accountName = idl.accounts?.[0]?.name ?? "DistributionState";
+  // idl is loaded untyped, so decoded accounts aren't known statically.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const distributionState = (program.account as any).distributionState;
-  const asAuthority = await distributionState.all([
-    { memcmp: { offset: 8, bytes: wallet.toBase58() } },
-  ]);
-  const asRecipient = await distributionState.all([
-    { memcmp: { offset: 8 + 32, bytes: wallet.toBase58() } },
-  ]);
+  const fetchByOffset = async (offset: number): Promise<{ publicKey: PublicKey; account: any }[]> => {
+    const raw = await program.provider.connection.getProgramAccounts(
+      PROGRAM_ID,
+      { filters: [{ memcmp: { offset, bytes: wallet.toBase58() } }] }
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const decoded: { publicKey: PublicKey; account: any }[] = [];
+    for (const { pubkey, account } of raw) {
+      try {
+        decoded.push({
+          publicKey: pubkey,
+          account: accountsCoder.decode(accountName, account.data),
+        });
+      } catch {
+        // Legacy pre-nonce streams are a shorter layout and fail to decode —
+        // skip them rather than failing the whole list.
+      }
+    }
+    return decoded;
+  };
+  const asAuthority = await fetchByOffset(8); // offset of `authority`
+  const asRecipient = await fetchByOffset(8 + 32); // offset of `recipient`
 
   // Fetch decimals once per unique mint so the UI can render base units
   // correctly (mUSDC=6, SOL=9, etc.). Missing/failed → default to 9.
   const allAccounts = [...asAuthority, ...asRecipient];
   const uniqueMints = Array.from(
-    new Set(allAccounts.map(({ account }) => account.tokenMint.toBase58()))
+    new Set(allAccounts.map(({ account }) => account.token_mint.toBase58()))
   );
   const decimalsByMint = new Map<string, number>();
   // Sequential (not parallel) + known-decimals shortcut keeps the public devnet
@@ -455,7 +491,7 @@ export async function fetchStreamsFor(
 
   const byId = new Map<string, DistributionState>();
   for (const { publicKey, account } of allAccounts) {
-    const mint = account.tokenMint.toBase58();
+    const mint = account.token_mint.toBase58();
     byId.set(
       publicKey.toBase58(),
       mapAccount(publicKey, account, decimalsByMint.get(mint) ?? 9)
