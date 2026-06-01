@@ -28,8 +28,32 @@ export const RPC_URL =
 
 export const idl = idlJson as Idl;
 
+// A fetch wrapper that retries HTTP 429s with exponential backoff. Passed to
+// the Connection so EVERY RPC call Anchor/web3.js makes internally — getLatest-
+// Blockhash, sendRawTransaction, confirmTransaction polling — survives the
+// public devnet endpoint's rate limiting, not just our own explicit reads.
+async function retryingFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const max = 5;
+  let res: Response | undefined;
+  for (let i = 0; i < max; i++) {
+    res = await fetch(input, init);
+    if (res.status !== 429) return res;
+    await new Promise((r) => setTimeout(r, 400 * 2 ** i)); // 0.4→6.4s
+  }
+  return res as Response;
+}
+
 export function getConnection(): Connection {
-  return new Connection(RPC_URL, "confirmed");
+  return new Connection(RPC_URL, {
+    commitment: "confirmed",
+    // Give confirmation polling room to breathe under throttling (default 30s
+    // → "Transaction was not confirmed in 30.00 seconds").
+    confirmTransactionInitialTimeout: 90_000,
+    fetch: retryingFetch,
+  });
 }
 
 /** True when an RPC error means "this token account doesn't exist yet" (vs. a
