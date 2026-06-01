@@ -61,3 +61,9 @@ export function getMockToken(mint: string): MockToken | undefined {
 export const MOCK_TOKEN_SYMBOLS: Record<string, string> = Object.fromEntries(
   MOCK_TOKENS.map((t) => [t.mint, t.symbol])
 );
+
+/** Decimals lookup keyed by mint — lets us skip an RPC getMint for known
+ *  tokens (the public devnet RPC 429s on those reads). */
+export const MOCK_TOKEN_DECIMALS: Record<string, number> = Object.fromEntries(
+  MOCK_TOKENS.map((t) => [t.mint, t.decimals])
+);

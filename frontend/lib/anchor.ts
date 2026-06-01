@@ -16,7 +16,7 @@ import {
 } from "@solana/web3.js";
 import idlJson from "./idl.json";
 import type { DistributionState } from "./types";
-import { MOCK_TOKEN_SYMBOLS } from "./tokens";
+import { MOCK_TOKEN_SYMBOLS, MOCK_TOKEN_DECIMALS } from "./tokens";
 
 export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID ??
@@ -51,6 +51,42 @@ function isTransientRpcError(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Run an async RPC read with backoff on transient (429/network) errors.
+ *  Rethrows non-transient errors immediately; returns `onGiveUp` if every
+ *  retry is exhausted. */
+async function withRpcRetry<T>(
+  fn: () => Promise<T>,
+  onGiveUp: () => T,
+  attempts = 4
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientRpcError(err)) throw err;
+      await sleep(400 * 2 ** i); // 400 / 800 / 1600ms
+    }
+  }
+  console.warn("withRpcRetry: gave up after rate limits", lastErr);
+  return onGiveUp();
+}
+
+/** Decimals for a mint. Mock tokens are known statically (no RPC needed);
+ *  unknown mints fall back to a retrying getMint, then to 9. */
+export async function getMintDecimals(
+  mint: PublicKey,
+  connection: Connection = getConnection()
+): Promise<number> {
+  const known = MOCK_TOKEN_DECIMALS[mint.toBase58()];
+  if (known !== undefined) return known;
+  return withRpcRetry(
+    async () => (await getMint(connection, mint)).decimals,
+    () => 9
+  );
+}
+
 /** Read an SPL token balance (UI units) with backoff on rate limits.
  *  Returns the balance, or `null` when the balance can't be determined because
  *  of a transient RPC error (so callers can fail-open instead of blocking). */
@@ -60,20 +96,19 @@ export async function getTokenUiBalance(
   connection: Connection = getConnection()
 ): Promise<number | null> {
   const ata = getAssociatedTokenAddressSync(mint, owner);
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const bal = await connection.getTokenAccountBalance(ata);
-      return bal.value.uiAmount ?? 0;
-    } catch (err) {
-      if (isAccountMissing(err)) return 0; // genuinely unfunded
-      lastErr = err;
-      if (!isTransientRpcError(err)) break;
-      await sleep(400 * 2 ** attempt); // 400 / 800 / 1600ms backoff
-    }
+  try {
+    return await withRpcRetry(
+      async () => {
+        const bal = await connection.getTokenAccountBalance(ata);
+        return bal.value.uiAmount ?? 0;
+      },
+      () => null as number | null // out of retries → undeterminable
+    );
+  } catch (err) {
+    if (isAccountMissing(err)) return 0; // genuinely unfunded
+    console.warn("getTokenUiBalance: could not read balance", err);
+    return null; // caller should fail-open
   }
-  console.warn("getTokenUiBalance: could not read balance", lastErr);
-  return null; // couldn't determine — caller should fail-open
 }
 
 /** Minimal wallet shape AnchorProvider needs (satisfied by the Privy bridge). */
@@ -141,7 +176,14 @@ async function ensureAta(
   mint: PublicKey
 ): Promise<[PublicKey, TransactionInstruction | null]> {
   const ata = getAssociatedTokenAddressSync(mint, owner);
-  const info = await connection.getAccountInfo(ata);
+  const info = await withRpcRetry(
+    () => connection.getAccountInfo(ata),
+    () => {
+      throw new Error(
+        "Network is rate-limited (RPC 429). Please try again in a moment."
+      );
+    }
+  );
   if (info) return [ata, null];
   return [
     ata,
@@ -398,19 +440,14 @@ export async function fetchStreamsFor(
     new Set(allAccounts.map(({ account }) => account.tokenMint.toBase58()))
   );
   const decimalsByMint = new Map<string, number>();
-  await Promise.all(
-    uniqueMints.map(async (m) => {
-      try {
-        const info = await getMint(
-          program.provider.connection,
-          new PublicKey(m)
-        );
-        decimalsByMint.set(m, info.decimals);
-      } catch {
-        decimalsByMint.set(m, 9);
-      }
-    })
-  );
+  // Sequential (not parallel) + known-decimals shortcut keeps the public devnet
+  // RPC from 429ing; getMintDecimals retries and falls back to 9.
+  for (const m of uniqueMints) {
+    decimalsByMint.set(
+      m,
+      await getMintDecimals(new PublicKey(m), program.provider.connection)
+    );
+  }
 
   const byId = new Map<string, DistributionState>();
   for (const { publicKey, account } of allAccounts) {

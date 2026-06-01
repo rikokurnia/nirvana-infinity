@@ -6,7 +6,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BN } from "@coral-xyz/anchor";
-import { getMint } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import type { DistributionState } from "@/lib/types";
 import { calculateClaimable } from "@/lib/utils";
@@ -14,6 +13,7 @@ import {
   cancel as cancelOnChain,
   createStream as createStreamOnChain,
   fetchStreamsFor,
+  getMintDecimals,
   releaseVault as releaseVaultOnChain,
   withdraw as withdrawOnChain,
 } from "@/lib/anchor";
@@ -147,7 +147,10 @@ export function useStreams() {
       setError(null);
       try {
         const mint = new PublicKey(params.tokenMint);
-        const { decimals } = await getMint(program.provider.connection, mint);
+        const decimals = await getMintDecimals(
+          mint,
+          program.provider.connection
+        );
         const scale = (v: number) =>
           new BN(Math.round(v * 10 ** decimals).toString());
         const signature = await createStreamOnChain(program, {
