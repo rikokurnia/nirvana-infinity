@@ -28,45 +28,12 @@ export const RPC_URL =
 
 export const idl = idlJson as Idl;
 
-// A fetch wrapper that survives rate limiting. Passed to the Connection so
-// EVERY internal web3.js call (getLatestBlockhash, sendRawTransaction,
-// confirmTransaction polling) retries on a 429 OR a thrown network error
-// ("Failed to fetch", which the previous version did NOT catch — it just blew
-// up). Honors the server's Retry-After and adds jitter so concurrent callers
-// don't retry in lockstep and amplify the throttle into a storm.
-async function retryingFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit
-): Promise<Response> {
-  const max = 4;
-  let lastErr: unknown;
-  for (let i = 0; i < max; i++) {
-    try {
-      const res = await fetch(input, init);
-      if (res.status !== 429) return res;
-      lastErr = new Error("HTTP 429");
-      const retryAfter = Number(res.headers.get("retry-after")) * 1000;
-      const backoff = Number.isFinite(retryAfter) && retryAfter > 0
-        ? retryAfter
-        : 500 * 2 ** i; // 0.5 / 1 / 2s
-      await sleep(backoff + Math.random() * 250); // jitter
-    } catch (err) {
-      // Network-level failure (TypeError: Failed to fetch). Retry with backoff.
-      lastErr = err;
-      await sleep(500 * 2 ** i + Math.random() * 250);
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-}
-
 export function getConnection(): Connection {
-  return new Connection(RPC_URL, {
-    commitment: "confirmed",
-    // Give confirmation polling room to breathe under throttling (default 30s
-    // → "Transaction was not confirmed in 30.00 seconds").
-    confirmTransactionInitialTimeout: 90_000,
-    fetch: retryingFetch,
-  });
+  // Plain connection — let web3.js use the browser's native fetch (and its own
+  // built-in 429 handling). A custom `fetch` wrapper here was causing
+  // "TypeError: Failed to fetch" in the browser. Read-level backoff lives in
+  // the helpers below (getTokenUiBalance / getMintDecimals).
+  return new Connection(RPC_URL, "confirmed");
 }
 
 /** True when an RPC error means "this token account doesn't exist yet" (vs. a
