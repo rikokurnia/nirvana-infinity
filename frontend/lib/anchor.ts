@@ -28,22 +28,35 @@ export const RPC_URL =
 
 export const idl = idlJson as Idl;
 
-// A fetch wrapper that retries HTTP 429s with exponential backoff. Passed to
-// the Connection so EVERY RPC call Anchor/web3.js makes internally — getLatest-
-// Blockhash, sendRawTransaction, confirmTransaction polling — survives the
-// public devnet endpoint's rate limiting, not just our own explicit reads.
+// A fetch wrapper that survives rate limiting. Passed to the Connection so
+// EVERY internal web3.js call (getLatestBlockhash, sendRawTransaction,
+// confirmTransaction polling) retries on a 429 OR a thrown network error
+// ("Failed to fetch", which the previous version did NOT catch — it just blew
+// up). Honors the server's Retry-After and adds jitter so concurrent callers
+// don't retry in lockstep and amplify the throttle into a storm.
 async function retryingFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const max = 5;
-  let res: Response | undefined;
+  const max = 4;
+  let lastErr: unknown;
   for (let i = 0; i < max; i++) {
-    res = await fetch(input, init);
-    if (res.status !== 429) return res;
-    await new Promise((r) => setTimeout(r, 400 * 2 ** i)); // 0.4→6.4s
+    try {
+      const res = await fetch(input, init);
+      if (res.status !== 429) return res;
+      lastErr = new Error("HTTP 429");
+      const retryAfter = Number(res.headers.get("retry-after")) * 1000;
+      const backoff = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter
+        : 500 * 2 ** i; // 0.5 / 1 / 2s
+      await sleep(backoff + Math.random() * 250); // jitter
+    } catch (err) {
+      // Network-level failure (TypeError: Failed to fetch). Retry with backoff.
+      lastErr = err;
+      await sleep(500 * 2 ** i + Math.random() * 250);
+    }
   }
-  return res as Response;
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 export function getConnection(): Connection {
