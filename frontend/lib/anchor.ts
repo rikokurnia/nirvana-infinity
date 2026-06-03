@@ -32,6 +32,27 @@ export const PROGRAM_ID = new PublicKey(
 export const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
 
+// `getProgramAccounts` is blocked on most free RPC tiers (Helius/QuickNode/etc.
+// return "getProgramAccounts is not available on the Free tier"). The public
+// devnet endpoint allows it, so we run gPA scans through a dedicated connection.
+// Override with NEXT_PUBLIC_GPA_RPC_URL if you have a paid RPC that supports it.
+export const GPA_RPC_URL =
+  process.env.NEXT_PUBLIC_GPA_RPC_URL ?? "https://api.devnet.solana.com";
+
+let gpaConnection: Connection | null = null;
+function getGpaConnection(): Connection {
+  if (!gpaConnection) gpaConnection = new Connection(GPA_RPC_URL, "confirmed");
+  return gpaConnection;
+}
+
+/** True when the RPC rejected getProgramAccounts because of plan/tier limits. */
+function isGpaUnavailable(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message ?? err);
+  return /getProgramAccounts is not available|not available on the Free tier|method not found|-32601|-32600/i.test(
+    msg
+  );
+}
+
 export const idl = idlJson as Idl;
 
 // Decode program accounts with a coder built directly from the IDL. The
@@ -451,10 +472,19 @@ export async function fetchStreamsFor(
   // idl is loaded untyped, so decoded accounts aren't known statically.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchByOffset = async (offset: number): Promise<{ publicKey: PublicKey; account: any }[]> => {
-    const raw = await program.provider.connection.getProgramAccounts(
-      PROGRAM_ID,
-      { filters: [{ memcmp: { offset, bytes: wallet.toBase58() } }] }
-    );
+    const filters = [{ memcmp: { offset, bytes: wallet.toBase58() } }];
+    let raw;
+    try {
+      // Try the app's primary RPC first (works if it's a paid tier).
+      raw = await program.provider.connection.getProgramAccounts(PROGRAM_ID, {
+        filters,
+      });
+    } catch (err) {
+      // Free tiers block gPA — fall back to the public devnet endpoint that
+      // allows it. Rethrow anything that isn't a tier/method rejection.
+      if (!isGpaUnavailable(err)) throw err;
+      raw = await getGpaConnection().getProgramAccounts(PROGRAM_ID, { filters });
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const decoded: { publicKey: PublicKey; account: any }[] = [];
     for (const { pubkey, account } of raw) {
