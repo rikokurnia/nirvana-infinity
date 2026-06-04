@@ -15,10 +15,12 @@ import {
 import Link from "next/link";
 
 export default function FounderStreamsPage() {
-  const { getFounderStreams, handleCancel, loading, error, refresh } = useStreams();
+  const { getFounderStreams, walletAddress, handleCancel, loading, error, refresh } = useStreams();
   const { user } = useAuth();
-  // Filter to streams this wallet created — never recipient-only ones.
-  const streams = getFounderStreams(user?.wallet?.address || "");
+  // Filter to streams this wallet created — never recipient-only ones. Use the
+  // signing Solana address (walletAddress), NOT user.wallet.address — for
+  // MetaMask/EVM logins those differ and the list would show nothing.
+  const streams = getFounderStreams(walletAddress);
   const showSkeleton = loading && streams.length === 0;
   const showError = !!error && streams.length === 0;
   const [confirmId, setConfirmId] = useState<string | null>(null);

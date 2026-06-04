@@ -1,7 +1,6 @@
 "use client";
 
 import { useStreams } from "@/hooks/use-streams";
-import { useAuth } from "@/app/providers/privy-provider";
 import {
   formatTokenAmount,
   calculateClaimable,
@@ -26,11 +25,12 @@ import {
 } from "@/app/components/stream-states";
 
 export default function FounderPage() {
-  const { getFounderStreams, loading, error, refresh } = useStreams();
-  const { user } = useAuth();
+  const { getFounderStreams, walletAddress, loading, error, refresh } = useStreams();
   // Only show streams this wallet *created* — recipient-only streams belong
   // on the worker view and must never bleed into the founder dashboard.
-  const founderAddress = user?.wallet?.address || "";
+  // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
+  // — for MetaMask/EVM logins those differ and the dashboard would show nothing.
+  const founderAddress = walletAddress;
   const streams = getFounderStreams(founderAddress);
   // Show skeletons on first load; keep showing data during background refetches.
   const showSkeleton = loading && streams.length === 0;

@@ -262,6 +262,11 @@ export function useStreams() {
     loading,
     error,
     refresh,
+    // The canonical Solana address that actually signs and owns on-chain state.
+    // Pages MUST filter streams by this (not Privy's user.wallet.address) — for
+    // EVM logins like MetaMask, Privy provisions a separate embedded Solana
+    // wallet, so user.wallet.address won't match the stream authority/recipient.
+    walletAddress: walletPubkey?.toBase58() ?? "",
     getStream,
     getClaimable,
     getWorkerStreams,

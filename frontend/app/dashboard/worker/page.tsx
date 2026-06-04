@@ -1,7 +1,6 @@
 "use client";
 
 import { useStreams } from "@/hooks/use-streams";
-import { useAuth } from "@/app/providers/privy-provider";
 import {
   formatTokenAmount,
   calculateClaimable,
@@ -21,12 +20,13 @@ import {
   StreamsEmpty,
   StreamsError,
 } from "@/app/components/stream-states";
+import { GasButton } from "@/app/components/gas-button";
 
 export default function WorkerPage() {
-  const { getWorkerStreams, loading, error, refresh } = useStreams();
-  const { user } = useAuth();
-
-  const workerAddress = user?.wallet?.address || "";
+  const { getWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
+  // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
+  // — for MetaMask/EVM logins those differ and the list would show nothing.
+  const workerAddress = walletAddress;
   const myStreams = getWorkerStreams(workerAddress);
   const showSkeleton = loading && myStreams.length === 0;
   const showError = !!error && myStreams.length === 0;
@@ -40,11 +40,14 @@ export default function WorkerPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-headline text-3xl font-bold tracking-tight">Worker Dashboard</h1>
-        <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
-          Track your incoming token streams
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-headline text-3xl font-bold tracking-tight">Worker Dashboard</h1>
+          <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
+            Track your incoming token streams
+          </p>
+        </div>
+        <GasButton />
       </div>
 
       {showSkeleton ? (

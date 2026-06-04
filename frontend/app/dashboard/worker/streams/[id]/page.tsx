@@ -23,6 +23,7 @@ import {
   formatAddress,
   formatDate,
 } from "@/lib/utils";
+import { GasButton } from "@/app/components/gas-button";
 
 export default function WorkerStreamDetailPage() {
   const params = useParams();
@@ -101,22 +102,26 @@ export default function WorkerStreamDetailPage() {
         Back
       </button>
 
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="font-headline text-3xl font-bold tracking-tight">
-            {stream.tokenSymbol} Stream
-          </h1>
-          <span className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
-            {stream.id}
-          </span>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="font-headline text-3xl font-bold tracking-tight">
+              {stream.tokenSymbol} Stream
+            </h1>
+            <span className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest">
+              {stream.id}
+            </span>
+          </div>
+          <p className="font-mono text-xs text-on-surface-variant mt-1">
+            {stream.isCancelled ? (
+              <span className="text-red-400">Cancelled</span>
+            ) : (
+              <span className="text-mint">Active</span>
+            )}
+          </p>
         </div>
-        <p className="font-mono text-xs text-on-surface-variant mt-1">
-          {stream.isCancelled ? (
-            <span className="text-red-400">Cancelled</span>
-          ) : (
-            <span className="text-mint">Active</span>
-          )}
-        </p>
+        {/* Workers need gas SOL to sign the withdraw — let them self-serve here. */}
+        <GasButton />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

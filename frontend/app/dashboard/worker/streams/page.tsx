@@ -1,7 +1,6 @@
 "use client";
 
 import { useStreams } from "@/hooks/use-streams";
-import { useAuth } from "@/app/providers/privy-provider";
 import {
   formatTokenAmount,
   calculateClaimable,
@@ -20,10 +19,10 @@ import {
 } from "@/app/components/stream-states";
 
 export default function WorkerStreamsPage() {
-  const { getWorkerStreams, loading, error, refresh } = useStreams();
-  const { user } = useAuth();
-
-  const workerAddress = user?.wallet?.address || "";
+  const { getWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
+  // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
+  // — for MetaMask/EVM logins those differ and the list would show nothing.
+  const workerAddress = walletAddress;
   const myStreams = getWorkerStreams(workerAddress);
   const showSkeleton = loading && myStreams.length === 0;
   const showError = !!error && myStreams.length === 0;

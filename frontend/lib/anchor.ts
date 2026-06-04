@@ -163,6 +163,10 @@ export function getProgram(
 ): Program {
   const provider = new AnchorProvider(connection, wallet, {
     commitment: "confirmed",
+    preflightCommitment: "confirmed",
+    // Devnet is congested — have the RPC node rebroadcast the signed tx several
+    // times so it lands before the blockhash expires ("block height exceeded").
+    maxRetries: 5,
   });
   // anchor 0.30+ signature: program id is read from idl.address
   return new Program(idl, provider);
