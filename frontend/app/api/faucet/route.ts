@@ -28,6 +28,9 @@ import { MOCK_TOKENS, getMockToken } from "@/lib/tokens";
 // spl-token / web3.js need Node APIs — not the Edge runtime.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Devnet confirmation can take a while; give the serverless function room so it
+// doesn't get killed mid-confirm (which made the client spin forever).
+export const maxDuration = 60;
 
 const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
@@ -40,24 +43,55 @@ const FAUCET_SECRET = process.env.MOCK_USDC_FAUCET_SECRET;
 const GAS_MIN_LAMPORTS = 0.015 * LAMPORTS_PER_SOL; // top up below this
 const GAS_DRIP_LAMPORTS = 0.02 * LAMPORTS_PER_SOL; // amount to send
 
-/** Did this RPC error mean the transaction's blockhash expired before it
- *  landed? Devnet is slow/congested, so this is the common faucet failure
- *  ("block height exceeded" / "Signature has expired"). */
-function isBlockhashExpired(err: unknown): boolean {
-  const msg = String((err as { message?: string })?.message ?? err);
-  return /block height exceeded|blockhash|signature.*expired|expired/i.test(msg);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Confirm a signature by POLLING getSignatureStatus instead of
+ *  connection.confirmTransaction(). confirmTransaction opens a WebSocket
+ *  subscription, which doesn't survive Vercel's serverless runtime — the
+ *  notification never arrives, so it blocks until the blockhash expires
+ *  ("block height exceeded") and the client spins. Polling works over plain
+ *  HTTP. Returns true on success, false on expiry/timeout (caller retries). */
+async function pollConfirm(
+  connection: Connection,
+  signature: string,
+  lastValidBlockHeight: number,
+  timeoutMs = 30_000
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const { value } = await connection.getSignatureStatus(signature, {
+      searchTransactionHistory: false,
+    });
+    if (value) {
+      if (value.err) {
+        throw new Error("Transaction failed: " + JSON.stringify(value.err));
+      }
+      if (
+        value.confirmationStatus === "confirmed" ||
+        value.confirmationStatus === "finalized"
+      ) {
+        return true;
+      }
+    }
+    // Stop waiting once the blockhash can no longer land — let the caller retry
+    // with a fresh one rather than burning the whole timeout.
+    const height = await connection.getBlockHeight("confirmed");
+    if (height > lastValidBlockHeight) return false;
+    await sleep(1500);
+  }
+  return false;
 }
 
-/** Send a transaction and wait for confirmation, retrying with a *fresh*
- *  blockhash when the previous one expires. This is what makes the faucet
- *  survive slow devnet instead of spinning forever / failing. */
+/** Send a transaction and confirm via polling, retrying with a *fresh*
+ *  blockhash when the previous one expires. Survives slow devnet AND Vercel
+ *  serverless (no WebSocket) instead of spinning forever / failing. */
 async function sendWithRetry(
   connection: Connection,
   instructions: TransactionInstruction[],
   feePayer: Keypair,
-  attempts = 3
+  attempts = 2
 ): Promise<string> {
-  let lastErr: unknown;
+  let lastErr: unknown = new Error("Faucet transaction did not confirm.");
   for (let i = 0; i < attempts; i++) {
     const { blockhash, lastValidBlockHeight } =
       await connection.getLatestBlockhash("confirmed");
@@ -72,15 +106,14 @@ async function sendWithRetry(
         skipPreflight: false,
         maxRetries: 5,
       });
-      await connection.confirmTransaction(
-        { signature, blockhash, lastValidBlockHeight },
-        "confirmed"
-      );
-      return signature;
+      if (await pollConfirm(connection, signature, lastValidBlockHeight)) {
+        return signature;
+      }
+      // Expired/timed out — loop and try again with a fresh blockhash.
+      lastErr = new Error("Confirmation timed out (block height exceeded).");
     } catch (err) {
-      lastErr = err;
-      // Only a fresh blockhash can recover an expiry; anything else is fatal.
-      if (!isBlockhashExpired(err)) throw err;
+      // A real on-chain/program error won't be fixed by a new blockhash.
+      throw err;
     }
   }
   throw lastErr;
