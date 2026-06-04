@@ -11,8 +11,11 @@ import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
 const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
-// http(s) -> ws(s) for the subscriptions endpoint.
-const WS_URL = RPC_URL.replace(/^http/, "ws");
+// Subscriptions endpoint. Do NOT derive it from the Helius HTTP URL — the
+// Helius free tier WS doesn't implement signatureSubscribe (-32601), which
+// broke confirmation. The public devnet WS supports it.
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL ?? "wss://api.devnet.solana.com";
 
 // Registers Phantom/Solflare under the Solana Wallet Standard instead of letting
 // Privy fall back to EIP-1193 (which is why Phantom was being asked for ETH).

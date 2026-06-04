@@ -32,6 +32,14 @@ export const PROGRAM_ID = new PublicKey(
 export const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
 
+// WebSocket endpoint for confirmation subscriptions (signatureSubscribe). The
+// Helius free tier's WS does NOT implement signatureSubscribe (-32601 "Method
+// not found"), which broke tx confirmation for Phantom. The public devnet WS
+// supports it, so default the WS to that even when HTTP runs through Helius.
+// Override with NEXT_PUBLIC_WS_URL if you have a paid WS that supports it.
+export const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL ?? "wss://api.devnet.solana.com";
+
 // `getProgramAccounts` is blocked on most free RPC tiers (Helius/QuickNode/etc.
 // return "getProgramAccounts is not available on the Free tier"). The public
 // devnet endpoint allows it, so we run gPA scans through a dedicated connection.
@@ -72,6 +80,9 @@ export function getConnection(): Connection {
     // create/claim throw "Transaction was not confirmed in 30.00 seconds"
     // even when the tx actually landed. Wait out the full blockhash window.
     confirmTransactionInitialTimeout: 90_000,
+    // Confirm over a WS that actually supports signatureSubscribe (Helius free
+    // returns -32601). HTTP reads still go through RPC_URL.
+    wsEndpoint: WS_URL,
   });
 }
 
