@@ -9,6 +9,7 @@ import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
 import { Transaction, VersionedTransaction, PublicKey } from "@solana/web3.js";
 import type { Program } from "@coral-xyz/anchor";
 import { getConnection, getProgram, type SignerWallet } from "@/lib/anchor";
+import { useAuth } from "@/app/providers/privy-provider";
 
 type AnyTx = Transaction | VersionedTransaction;
 
@@ -33,8 +34,22 @@ export interface NirvanaProgram {
 export function useNirvanaProgram(): NirvanaProgram {
   const { wallets, ready } = useWallets();
   const { signTransaction } = useSignTransaction();
+  const { user } = useAuth();
 
-  const wallet = wallets[0]; // Privy's active embedded Solana wallet
+  // Pick the signing wallet deterministically. `wallets[0]` varies with whatever
+  // wallet extensions happen to be connected, so a MetaMask user with Phantom
+  // also installed got a Phantom popup on confirm. Prefer the account Privy
+  // treats as primary (user.wallet), then the Privy embedded wallet, then the
+  // first connected one. Whatever we pick is BOTH the signer and the address the
+  // dashboard filters by, so they always stay in sync.
+  const primaryAddress = user?.wallet?.address;
+  const wallet =
+    wallets.find((w) => w.address === primaryAddress) ??
+    // The Privy embedded Solana wallet registers under the Wallet Standard with
+    // the name "Privy" — prefer it so a MetaMask/email user isn't prompted via
+    // a coincidentally-connected Phantom extension.
+    wallets.find((w) => /privy/i.test(w.standardWallet?.name ?? "")) ??
+    wallets[0];
   const address = wallet?.address ?? null;
 
   // Privy's useWallets() returns a NEW wallet object reference every render, so

@@ -66,7 +66,13 @@ export function getConnection(): Connection {
   // built-in 429 handling). A custom `fetch` wrapper here was causing
   // "TypeError: Failed to fetch" in the browser. Read-level backoff lives in
   // the helpers below (getTokenUiBalance / getMintDecimals).
-  return new Connection(RPC_URL, "confirmed");
+  return new Connection(RPC_URL, {
+    commitment: "confirmed",
+    // Devnet often takes >30s to confirm under load; the 30s default made
+    // create/claim throw "Transaction was not confirmed in 30.00 seconds"
+    // even when the tx actually landed. Wait out the full blockhash window.
+    confirmTransactionInitialTimeout: 90_000,
+  });
 }
 
 /** True when an RPC error means "this token account doesn't exist yet" (vs. a
