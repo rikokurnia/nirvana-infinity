@@ -10,7 +10,7 @@ import {
 } from "@coral-xyz/anchor";
 import {
   TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   getMint,
 } from "@solana/spl-token";
@@ -209,26 +209,23 @@ export function deriveVaultPda(statePda: PublicKey): PublicKey {
   )[0];
 }
 
-/** Idempotent: create owner's ATA if it doesn't exist yet. Returns [ata, maybeIx]. */
-async function ensureAta(
-  connection: Connection,
+/** Returns [ata, ix] where `ix` is an *idempotent* create-ATA instruction:
+ *  it no-ops on-chain if the ATA already exists and creates it otherwise.
+ *
+ *  We used to check getAccountInfo first and only create when missing, but a
+ *  stale/lagging RPC read returned null for an ATA that actually existed, so we
+ *  sent a plain Create against an existing account → the ATA program rejected it
+ *  with "Provided owner is not allowed". The idempotent instruction removes that
+ *  whole class of race entirely. */
+function ensureAta(
   payer: PublicKey,
   owner: PublicKey,
   mint: PublicKey
-): Promise<[PublicKey, TransactionInstruction | null]> {
+): [PublicKey, TransactionInstruction] {
   const ata = getAssociatedTokenAddressSync(mint, owner);
-  const info = await withRpcRetry(
-    () => connection.getAccountInfo(ata),
-    () => {
-      throw new Error(
-        "Network is rate-limited (RPC 429). Please try again in a moment."
-      );
-    }
-  );
-  if (info) return [ata, null];
   return [
     ata,
-    createAssociatedTokenAccountInstruction(payer, ata, owner, mint),
+    createAssociatedTokenAccountIdempotentInstruction(payer, ata, owner, mint),
   ];
 }
 
@@ -290,25 +287,25 @@ export async function withdraw(
   statePda: PublicKey,
   tokenMint: PublicKey
 ): Promise<string> {
-  const connection = program.provider.connection;
   const recipient = program.provider.publicKey!;
   const vaultPda = deriveVaultPda(statePda);
-  const [recipientTokenAccount, ataIx] = await ensureAta(
-    connection,
+  const [recipientTokenAccount, ataIx] = ensureAta(
     recipient,
     recipient,
     tokenMint
   );
 
-  const builder = program.methods.withdraw().accounts({
-    recipient,
-    distributionState: statePda,
-    tokenVault: vaultPda,
-    recipientTokenAccount,
-    tokenProgram: TOKEN_PROGRAM_ID,
-  });
-  if (ataIx) builder.preInstructions([ataIx]);
-  return builder.rpc();
+  return program.methods
+    .withdraw()
+    .accounts({
+      recipient,
+      distributionState: statePda,
+      tokenVault: vaultPda,
+      recipientTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .preInstructions([ataIx])
+    .rpc();
 }
 
 export async function cancel(
@@ -317,7 +314,6 @@ export async function cancel(
   recipient: PublicKey,
   tokenMint: PublicKey
 ): Promise<string> {
-  const connection = program.provider.connection;
   const authority = program.provider.publicKey!;
   const vaultPda = deriveVaultPda(statePda);
   const authorityTokenAccount = getAssociatedTokenAddressSync(
@@ -325,23 +321,24 @@ export async function cancel(
     authority
   );
   // authority pays to ensure recipient's ATA exists so vested funds can settle.
-  const [recipientTokenAccount, ataIx] = await ensureAta(
-    connection,
+  const [recipientTokenAccount, ataIx] = ensureAta(
     authority,
     recipient,
     tokenMint
   );
 
-  const builder = program.methods.cancel().accounts({
-    authority,
-    distributionState: statePda,
-    tokenVault: vaultPda,
-    authorityTokenAccount,
-    recipientTokenAccount,
-    tokenProgram: TOKEN_PROGRAM_ID,
-  });
-  if (ataIx) builder.preInstructions([ataIx]);
-  return builder.rpc();
+  return program.methods
+    .cancel()
+    .accounts({
+      authority,
+      distributionState: statePda,
+      tokenVault: vaultPda,
+      authorityTokenAccount,
+      recipientTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .preInstructions([ataIx])
+    .rpc();
 }
 
 export async function triggerMilestone(

@@ -19,7 +19,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import {
-  createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   createMintToInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
@@ -134,26 +134,24 @@ export async function POST(request: Request) {
     const ata = getAssociatedTokenAddressSync(mint, owner);
 
     // Build everything into ONE transaction so it's a single confirmation:
-    //   (1) create the recipient ATA if needed, (2) mint tokens, (3) gas drip.
+    //   (1) create the recipient ATA (idempotent), (2) mint tokens, (3) gas drip.
     // The faucet keypair is fee payer + mint authority + gas source for all.
     // gasOnly skips (1) and (2) — just the SOL drip.
-    const [ataInfo, ownerLamports] = await Promise.all([
-      gasOnly ? Promise.resolve(null) : connection.getAccountInfo(ata),
-      connection.getBalance(owner),
-    ]);
+    const ownerLamports = await connection.getBalance(owner);
 
     const instructions: TransactionInstruction[] = [];
     if (!gasOnly) {
-      if (!ataInfo) {
-        instructions.push(
-          createAssociatedTokenAccountInstruction(
-            faucet.publicKey, // payer
-            ata,
-            owner,
-            mint
-          )
-        );
-      }
+      // Idempotent create: no-op if the ATA already exists, so we never hit
+      // "Provided owner is not allowed" from a non-idempotent Create on a
+      // wallet that was already fauceted.
+      instructions.push(
+        createAssociatedTokenAccountIdempotentInstruction(
+          faucet.publicKey, // payer
+          ata,
+          owner,
+          mint
+        )
+      );
       instructions.push(
         createMintToInstruction(mint, ata, faucet.publicKey, amount)
       );
