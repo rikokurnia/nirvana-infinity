@@ -36,6 +36,9 @@ const CANCELLED_ACCOUNT_GONE =
 // ConstraintSeeds (before, or instead of, the has_one ConstraintHasOne).
 const UNAUTHORIZED = /ConstraintSeeds|ConstraintHasOne|seeds constraint|has one constraint/i;
 
+// Anchor may surface the error code name or the human-readable #[msg] string.
+const STREAM_EXPIRED = /StreamExpired|Stream expired/i;
+
 describe("Nirvana Protocol - Complete Test Suite", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -548,7 +551,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       assert.fail("Should have thrown StreamExpired");
     } catch (err: any) {
       const t = errText(err);
-      assert.include(t, "StreamExpired", `expected StreamExpired, got: ${t}`);
+      assert.match(t, STREAM_EXPIRED, `expected stream expired error, got: ${t}`);
     }
   });
 
