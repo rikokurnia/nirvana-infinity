@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# Use default Solana wallet
-WALLET="/home/cokoo/.config/solana/id.json"
+PROGRAM_ID="FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc"
+WALLET="${ANCHOR_WALLET:-$HOME/.config/solana/id.json}"
 
 # Node 20+/26 treats yargs' extensionless CJS file as ESM because yargs ships
 # "type":"module", crashing mocha at startup ("require is not defined in ES
-# module scope"). Dropping that field makes .js/extensionless load as CJS while
+# module scope). Dropping that field makes .js/extensionless load as CJS while
 # .mjs stays ESM. Idempotent; re-applies after any `npm install`.
 YARGS_PKG="node_modules/yargs/package.json"
 if [ -f "$YARGS_PKG" ] && grep -q '"type": "module"' "$YARGS_PKG"; then
@@ -17,17 +17,17 @@ fi
 pkill -f solana-test-validator 2>/dev/null || true
 sleep 2
 
-# Start validator
-solana-test-validator --reset --quiet &
+# Load program at the declared ID (keypair in target/deploy may not match declare_id).
+solana-test-validator --reset --quiet \
+  --bpf-program "$PROGRAM_ID" target/deploy/nirvana.so &
 VALIDATOR_PID=$!
 sleep 6
 
 # Configure
 solana config set --url localhost --keypair "$WALLET" 2>/dev/null
 
-# Fund and deploy
+# Fund wallet for tx fees
 solana airdrop 100 2>/dev/null
-solana program deploy target/deploy/nirvana.so --program-id target/deploy/nirvana-keypair.json 2>/dev/null
 
 # Run tests. Node 23+/26 strips TS types natively and runs .ts as ESM, which
 # bypasses ts-node and breaks type-only imports + __dirname. Disabling it routes
