@@ -34,3 +34,14 @@ jobs:
         run: |
           test -f target/deploy/nirvana.so
           test -f target/idl/nirvana_protocol.json
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Generate CI wallet
+        run: |
+          mkdir -p "$HOME/.config/solana"
+          solana-keygen new --no-bip39-passphrase -o "$HOME/.config/solana/id.json" --force
+
+      - name: Run integration tests
+        run: chmod +x run-tests.sh && ./run-tests.sh

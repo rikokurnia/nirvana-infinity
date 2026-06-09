@@ -21,8 +21,8 @@ Before setting up, ensure you have the following installed:
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/soraonchain-byte/Nirvana.git
-cd Nirvana
+git clone https://github.com/rikokurnia/nirvana-infinity.git
+cd nirvana-infinity
 npm install
 ```
 
@@ -32,37 +32,38 @@ npm install
 To compile the smart contract and generate the IDL:
 
 ```bash
-anchor build
+CARGO_TARGET_DIR=$PWD/target anchor build --ignore-keys
 ```
 
-Note: This will generate the `target/` folder containing the program binary (`nirvana.so`) and IDL (`nirvana_protocol.json`).
+Note: `--ignore-keys` is required when the local deploy keypair does not match the program ID declared in source (`FxPnV48...`). This generates `target/deploy/nirvana.so` and `target/idl/nirvana_protocol.json`.
 
 ### 4. Running Tests
 
-**Option A: Manual (recommended)**
+**Option A: Test script (recommended)**
 
 ```bash
-# Terminal 1: Start local validator
-solana-test-validator --reset
+chmod +x run-tests.sh
+./run-tests.sh
+```
 
-# Terminal 2: Deploy and test
-solana config set --url localhost --keypair ~/.config/solana/id.json
-solana airdrop 100
-solana program deploy target/deploy/nirvana.so --program-id target/deploy/nirvana-keypair.json
+The script starts a local validator, loads the program at the declared devnet ID via `--bpf-program`, and runs the full Mocha suite (~2 minutes).
+
+**Option B: Manual**
+
+```bash
+# Terminal 1
+solana-test-validator --reset \
+  --bpf-program FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc \
+  target/deploy/nirvana.so
+
+# Terminal 2
 ANCHOR_WALLET=~/.config/solana/id.json \
 ANCHOR_PROVIDER_URL=http://localhost:8899 \
-npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts
+NODE_OPTIONS="--no-experimental-strip-types" \
+npm test
 ```
 
-**Option B: Anchor test**
-
-Remove the `[scripts]` section from `Anchor.toml` (if present), then:
-
-```bash
-anchor test
-```
-
-Note: The test suite validates stream creation, time validation, and token transfers.
+Note: The test suite covers stream creation, cliff/milestone vesting, cancel splits, arbiter triggers, and `top_up`.
 
 ---
 
@@ -121,9 +122,9 @@ solana program deploy target/deploy/nirvana.so --program-id target/deploy/nirvan
 
 ## 🤖 CI/CD Integration
 This repository is equipped with **GitHub Actions**. Every push or pull request triggers a workflow that:
-1. Sets up the Solana/Anchor environment.
-2. Runs `anchor build` to check for compilation errors.
-3. Executes the test suite to ensure no regressions.
+1. Sets up Solana 3.1 + Anchor 1.0.
+2. Runs `anchor build --ignore-keys` and verifies build artifacts.
+3. Executes `./run-tests.sh` (29 integration tests).
 
 ---
 
