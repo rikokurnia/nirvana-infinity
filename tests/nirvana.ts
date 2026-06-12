@@ -114,10 +114,29 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
     return { authority, recipient, authorityTokenAccount, recipientTokenAccount };
   }
 
-  // Helper: derive PDAs
-  function getPDAs(authority: anchor.web3.PublicKey, recipient: anchor.web3.PublicKey) {
+  // Monotonic nonce source. The on-chain state PDA is seeded with an 8-byte LE
+  // nonce (added in the Week 6 collision fix), so every stream must supply a
+  // unique one. A counter beats Date.now() because two createStream calls can
+  // land in the same millisecond and would otherwise collide.
+  let nonceCounter = Date.now();
+  function nextNonce(): anchor.BN {
+    return new anchor.BN(nonceCounter++);
+  }
+
+  // Helper: derive PDAs. State seeds must match the program exactly:
+  // [b"state", authority, recipient, nonce.to_le_bytes()] (see lib.rs CreateStream).
+  function getPDAs(
+    authority: anchor.web3.PublicKey,
+    recipient: anchor.web3.PublicKey,
+    nonce: anchor.BN
+  ) {
     const [statePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("state"), authority.toBuffer(), recipient.toBuffer()],
+      [
+        Buffer.from("state"),
+        authority.toBuffer(),
+        recipient.toBuffer(),
+        nonce.toArrayLike(Buffer, "le", 8),
+      ],
       program.programId
     );
     const [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -140,6 +159,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       endTime?: anchor.BN;
       cliffTime?: anchor.BN;
       arbiter?: anchor.web3.PublicKey | null;
+      nonce?: anchor.BN;
     }
   ) {
     const now = Math.floor(Date.now() / 1000);
@@ -150,11 +170,12 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
     const endTime = params.endTime ?? new anchor.BN(now + 10);
     const cliffTime = params.cliffTime ?? new anchor.BN(now + 3);
     const arbiter = params.arbiter ?? null;
+    const nonce = params.nonce ?? nextNonce();
 
-    const { statePda, vaultPda } = getPDAs(params.authority.publicKey, params.recipient);
+    const { statePda, vaultPda } = getPDAs(params.authority.publicKey, params.recipient, nonce);
 
     await program.methods
-      .createStream(baseAmount, cliffAmount, milestoneAmount, startTime, endTime, cliffTime, arbiter)
+      .createStream(nonce, baseAmount, cliffAmount, milestoneAmount, startTime, endTime, cliffTime, arbiter)
       .accounts({
         authority: params.authority.publicKey,
         recipient: params.recipient,
@@ -168,7 +189,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       .signers([params.authority])
       .rpc();
 
-    return { statePda, vaultPda, baseAmount, cliffAmount, milestoneAmount, startTime, endTime, cliffTime };
+    return { statePda, vaultPda, nonce, baseAmount, cliffAmount, milestoneAmount, startTime, endTime, cliffTime };
   }
 
   // =========================================================================
@@ -507,7 +528,9 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       assert.fail("Should have thrown StreamExpired");
     } catch (err: any) {
       const t = errText(err);
-      assert.include(t, "StreamExpired", `expected StreamExpired, got: ${t}`);
+      // Depending on how the client surfaces it, the error appears as either the
+      // code name ("StreamExpired") or the human-readable #[msg] ("Stream expired.").
+      assert.match(t, /StreamExpired|Stream expired/i, `expected StreamExpired, got: ${t}`);
     }
   });
 
