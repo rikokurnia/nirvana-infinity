@@ -1,6 +1,6 @@
 # Nirvana Protocol — Frontend
 
-Next.js 15 App Router frontend for the [Nirvana Protocol](https://github.com/soraonchain-byte/Nirvana) equity-streaming smart contract on Solana.
+Next.js 15 App Router frontend for the [Nirvana Protocol](https://github.com/rikokurnia/nirvana-infinity) equity-streaming smart contract on Solana.
 
 **Live:** https://nirvana-infinity.vercel.app  
 **Program ID (Devnet):** `FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc`

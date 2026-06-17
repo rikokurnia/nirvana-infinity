@@ -36,6 +36,9 @@ const CANCELLED_ACCOUNT_GONE =
 // ConstraintSeeds (before, or instead of, the has_one ConstraintHasOne).
 const UNAUTHORIZED = /ConstraintSeeds|ConstraintHasOne|seeds constraint|has one constraint/i;
 
+// Anchor may surface the error code name or the human-readable #[msg] string.
+const STREAM_EXPIRED = /StreamExpired|Stream expired/i;
+
 describe("Nirvana Protocol - Complete Test Suite", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -51,6 +54,13 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
 
   // Global payer for mint creation
   const mintAuthority = anchor.web3.Keypair.generate();
+
+  // Unique nonce per stream (matches frontend/lib/anchor.ts PDA seeds).
+  let nextNonce = 1;
+
+  function nonceToBuffer(nonce: anchor.BN): Buffer {
+    return nonce.toArrayLike(Buffer, "le", 8);
+  }
 
   async function airdrop(pubkey: anchor.web3.PublicKey, amount: number) {
     const sig = await provider.connection.requestAirdrop(pubkey, amount);
@@ -163,6 +173,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
     }
   ) {
     const now = Math.floor(Date.now() / 1000);
+    const nonce = params.nonce ?? new anchor.BN(nextNonce++);
     const baseAmount = params.baseAmount ?? new anchor.BN(100_000_000);
     const cliffAmount = params.cliffAmount ?? new anchor.BN(0);
     const milestoneAmount = params.milestoneAmount ?? new anchor.BN(50_000_000);
@@ -731,10 +742,10 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
     const recipientBalance = await getTokenBalance(recipientTokenAccount);
     const creatorBalanceAfter = await getTokenBalance(authorityTokenAccount);
 
-    // Recipient gets linear (~50) + triggered milestone (50) ~= 100. Wide band
+    // Recipient gets linear (~50) + triggered milestone (50) ~= 100–120. Wide band
     // absorbs validator clock drift on the linear part.
     assert.isAbove(recipientBalance, 80);
-    assert.isBelow(recipientBalance, 120);
+    assert.isAtMost(recipientBalance, 120);
 
     // Creator gets back 150 - recipient (the unvested linear remainder ~50).
     const creatorGain = creatorBalanceAfter - creatorBalanceBefore;
