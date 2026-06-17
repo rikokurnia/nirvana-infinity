@@ -67,6 +67,16 @@ Note: The test suite covers stream creation, cliff/milestone vesting, cancel spl
 
 ---
 
+## 📚 Documentation
+
+Detailed documentation for developers and integrators can be found in the `docs/` directory:
+
+* **[Instruction Reference](docs/INSTRUCTIONS.md)**: Detailed breakdown of every smart contract instruction (parameters, behavior, and error codes).
+* **[Integration Guide](docs/INTEGRATION.md)**: Step-by-step guide with TypeScript snippets for creating and interacting with streams.
+* **[Architecture Decision Records (ADR)](docs/ADR.md)**: Key design decisions (e.g., Nonce-seeded PDAs, Vault Auto-close).
+
+---
+
 ### 🛠 Project Structure
 ![alt text](Project-structure.png)
 
