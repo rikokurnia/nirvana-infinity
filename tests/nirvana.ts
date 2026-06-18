@@ -55,13 +55,6 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
   // Global payer for mint creation
   const mintAuthority = anchor.web3.Keypair.generate();
 
-  // Unique nonce per stream (matches frontend/lib/anchor.ts PDA seeds).
-  let nextNonce = 1;
-
-  function nonceToBuffer(nonce: anchor.BN): Buffer {
-    return nonce.toArrayLike(Buffer, "le", 8);
-  }
-
   async function airdrop(pubkey: anchor.web3.PublicKey, amount: number) {
     const sig = await provider.connection.requestAirdrop(pubkey, amount);
     const latestBlockHash = await provider.connection.getLatestBlockhash();
@@ -173,7 +166,6 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
     }
   ) {
     const now = Math.floor(Date.now() / 1000);
-    const nonce = params.nonce ?? new anchor.BN(nextNonce++);
     const baseAmount = params.baseAmount ?? new anchor.BN(100_000_000);
     const cliffAmount = params.cliffAmount ?? new anchor.BN(0);
     const milestoneAmount = params.milestoneAmount ?? new anchor.BN(50_000_000);

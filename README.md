@@ -46,7 +46,7 @@ chmod +x run-tests.sh
 ./run-tests.sh
 ```
 
-The script starts a local validator, loads the program at the declared devnet ID via `--bpf-program`, and runs the full Mocha suite (~2 minutes).
+The script starts a local validator, loads the program at the declared devnet ID via `--bpf-program`, and runs the full Mocha suite (**40 tests**, ~3 minutes).
 
 **Option B: Manual**
 
@@ -73,7 +73,8 @@ Detailed documentation for developers and integrators can be found in the `docs/
 
 * **[Instruction Reference](docs/INSTRUCTIONS.md)**: Detailed breakdown of every smart contract instruction (parameters, behavior, and error codes).
 * **[Integration Guide](docs/INTEGRATION.md)**: Step-by-step guide with TypeScript snippets for creating and interacting with streams.
-* **[Architecture Decision Records (ADR)](docs/ADR.md)**: Key design decisions (e.g., Nonce-seeded PDAs, Vault Auto-close).
+* **[Testing & CI Guide](docs/TESTING.md)**: Build, `run-tests.sh`, CI pipeline, and test suite structure.
+* **[Architecture Decision Records (ADR)](docs/ADR.md)**: Key design decisions (e.g., Nonce-seeded PDAs, Vault Auto-close, local test harness).
 
 ---
 
@@ -134,7 +135,7 @@ solana program deploy target/deploy/nirvana.so --program-id target/deploy/nirvan
 This repository is equipped with **GitHub Actions**. Every push or pull request triggers a workflow that:
 1. Sets up Solana 3.1 + Anchor 1.0.
 2. Runs `anchor build --ignore-keys` and verifies build artifacts.
-3. Executes `./run-tests.sh` (29 integration tests).
+3. Executes `./run-tests.sh` (40 integration tests).
 
 ---
 
