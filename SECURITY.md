@@ -6,7 +6,7 @@
 **Reviewer:** Riko Kurnia Sandi
 **Method:** Manual code review against the [coral-xyz/sealevel-attacks](https://github.com/coral-xyz/sealevel-attacks) catalog + integration/edge/adversarial tests (`tests/nirvana.ts`, `tests/nirvana-edge-security.ts`).
 
-**Verdict: No critical or high-severity issues remaining.** All vesting funds are gated by signer + PDA + arithmetic checks that are exercised by the test suite (37/37 passing).
+**Verdict: No critical or high-severity issues remaining.** All vesting funds are gated by signer + PDA + arithmetic checks that are exercised by the test suite (40/40 passing).
 
 ---
 

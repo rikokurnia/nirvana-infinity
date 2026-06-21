@@ -42,3 +42,22 @@ We introduced an optional `arbiter` field (a `Pubkey`) during stream creation. I
 ### Consequences
 * **Pros:** Provides flexibility. A founder can manually approve the milestone themselves, or they can designate a third-party oracle, a multisig wallet, or an automated bot as the `arbiter` to trigger the milestone trustlessly.
 * **Cons:** Slightly increases the size of the `DistributionState` account (by 32 bytes for the `arbiter` pubkey), but the cost is negligible compared to the utility gained.
+
+---
+
+## ADR 4: Local Testing via `--bpf-program` Without Deploy Keypair
+
+### Context
+Contributors cloning the repo often cannot deploy to the program ID declared in `declare_id!` because their local `target/deploy/nirvana-keypair.json` does not match the devnet address (`FxPnV48...`). Without a workaround, `anchor test` fails on program ID mismatch and CI cannot run integration tests reliably.
+
+### Decision
+We use two flags/patterns:
+
+1. **`anchor build --ignore-keys`** — compile the `.so` and IDL without syncing the local keypair to `declare_id!`.
+2. **`solana-test-validator --bpf-program <PROGRAM_ID> target/deploy/nirvana.so`** — load the compiled artifact at the **declared** program address on a local validator, so tests exercise the same IDL address as devnet without a deploy step.
+
+The `run-tests.sh` script and GitHub Actions workflow both follow this pattern. CI generates a throwaway wallet and airdrops SOL for fees only.
+
+### Consequences
+* **Pros:** Any contributor can run 40/40 tests after `anchor build --ignore-keys`. CI matches local behavior. No devnet SOL or deploy keypair required for testing.
+* **Cons:** Tests run against a local validator, not live devnet RPC — devnet-specific RPC quirks are not covered. Developers must remember `--ignore-keys` when building locally.
