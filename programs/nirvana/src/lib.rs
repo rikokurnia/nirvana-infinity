@@ -3,6 +3,63 @@ use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, Transfer}
 
 declare_id!("FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc");
 
+/// Linear base vesting — accrues from `start_time`, capped at `base_amount`.
+fn linear_unlocked(base_amount: u64, start_time: i64, end_time: i64, now: i64) -> Result<u64> {
+    if now <= start_time {
+        return Ok(0);
+    }
+
+    let total_duration = end_time
+        .checked_sub(start_time)
+        .ok_or(NirvanaError::MathOverflow)?;
+
+    if total_duration == 0 {
+        return Ok(base_amount);
+    }
+
+    let elapsed = if now > end_time {
+        total_duration
+    } else {
+        now.checked_sub(start_time)
+            .ok_or(NirvanaError::MathOverflow)?
+    };
+
+    Ok((base_amount as u128)
+        .checked_mul(elapsed as u128)
+        .ok_or(NirvanaError::MathOverflow)?
+        .checked_div(total_duration as u128)
+        .ok_or(NirvanaError::MathOverflow)? as u64)
+}
+
+/// Recipient-side unlock: each bucket is independent (linear from start,
+/// cliff lump at cliff_time, milestone after manual trigger).
+fn recipient_unlocked(state: &DistributionState, now: i64) -> Result<u64> {
+    let linear = linear_unlocked(
+        state.base_amount,
+        state.start_time,
+        state.end_time,
+        now,
+    )?;
+
+    let cliff = if now >= state.cliff_time {
+        state.cliff_amount
+    } else {
+        0
+    };
+
+    let milestone = if state.milestone_achieved {
+        state.milestone_amount
+    } else {
+        0
+    };
+
+    linear
+        .checked_add(cliff)
+        .ok_or(NirvanaError::MathOverflow)?
+        .checked_add(milestone)
+        .ok_or(NirvanaError::MathOverflow.into())
+}
+
 #[program]
 pub mod nirvana_protocol {
     use super::*;
@@ -97,42 +154,8 @@ pub mod nirvana_protocol {
         let now = Clock::get()?.unix_timestamp;
 
         require!(!state.is_cancelled, NirvanaError::StreamCancelled);
-        require!(now >= state.cliff_time, NirvanaError::CliffNotReached);
 
-        let total_duration = state
-            .end_time
-            .checked_sub(state.start_time)
-            .ok_or(NirvanaError::MathOverflow)?;
-
-        let elapsed = if now > state.end_time {
-            total_duration
-        } else {
-            now.checked_sub(state.start_time)
-                .ok_or(NirvanaError::MathOverflow)?
-        };
-
-        let linear = if total_duration > 0 {
-            (state.base_amount as u128)
-                .checked_mul(elapsed as u128)
-                .ok_or(NirvanaError::MathOverflow)?
-                .checked_div(total_duration as u128)
-                .ok_or(NirvanaError::MathOverflow)? as u64
-        } else {
-            state.base_amount
-        };
-
-        let milestone = if state.milestone_achieved {
-            state.milestone_amount
-        } else {
-            0
-        };
-
-        // cliff_time has been reached (checked above), so the cliff lump is unlocked.
-        let unlocked = linear
-            .checked_add(state.cliff_amount)
-            .ok_or(NirvanaError::MathOverflow)?
-            .checked_add(milestone)
-            .ok_or(NirvanaError::MathOverflow)?;
+        let unlocked = recipient_unlocked(state, now)?;
 
         let claimable = unlocked
             .checked_sub(state.claimed_amount)
@@ -179,6 +202,51 @@ pub mod nirvana_protocol {
         Ok(())
     }
 
+    /// Return unclaimed milestone bonus to the founder after the stream ends
+    /// without a trigger — bonus was conditional and never awarded.
+    pub fn reclaim_milestone(ctx: Context<ReclaimMilestone>) -> Result<()> {
+        let state = &mut ctx.accounts.distribution_state;
+        let now = Clock::get()?.unix_timestamp;
+
+        require!(!state.is_cancelled, NirvanaError::StreamCancelled);
+        require!(now > state.end_time, NirvanaError::StreamNotEnded);
+        require!(!state.milestone_achieved, NirvanaError::MilestoneAlreadyAchieved);
+        require!(state.milestone_amount > 0, NirvanaError::NothingToReclaim);
+
+        let amount = state.milestone_amount;
+        state.milestone_amount = 0;
+
+        let nonce_bytes = state.nonce.to_le_bytes();
+        let seeds = &[
+            b"state".as_ref(),
+            state.authority.as_ref(),
+            state.recipient.as_ref(),
+            &nonce_bytes,
+            &[state.bump],
+        ];
+        let signer = &[&seeds[..]];
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.token_vault.to_account_info(),
+                    to: ctx.accounts.authority_token_account.to_account_info(),
+                    authority: state.to_account_info(),
+                },
+                signer,
+            ),
+            amount,
+        )?;
+
+        emit!(MilestoneReclaimed {
+            authority: state.authority,
+            amount,
+        });
+
+        Ok(())
+    }
+
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let state = &mut ctx.accounts.distribution_state;
         let now = Clock::get()?.unix_timestamp;
@@ -188,50 +256,7 @@ pub mod nirvana_protocol {
 
         let balance = ctx.accounts.token_vault.amount;
 
-        let linear_unlocked;
-        let milestone_unlocked;
-
-        if now >= state.cliff_time {
-            let total_duration = state
-                .end_time
-                .checked_sub(state.start_time)
-                .ok_or(NirvanaError::MathOverflow)?;
-
-            let elapsed = if now > state.end_time {
-                total_duration
-            } else {
-                now.checked_sub(state.start_time)
-                    .ok_or(NirvanaError::MathOverflow)?
-            };
-
-            let linear = if total_duration > 0 {
-                (state.base_amount as u128)
-                    .checked_mul(elapsed as u128)
-                    .ok_or(NirvanaError::MathOverflow)?
-                    .checked_div(total_duration as u128)
-                    .ok_or(NirvanaError::MathOverflow)? as u64
-            } else {
-                state.base_amount
-            };
-
-            // past cliff: the cliff lump is unlocked for the recipient too.
-            linear_unlocked = linear
-                .checked_add(state.cliff_amount)
-                .ok_or(NirvanaError::MathOverflow)?;
-
-            milestone_unlocked = if state.milestone_achieved {
-                state.milestone_amount
-            } else {
-                0
-            };
-        } else {
-            linear_unlocked = 0;
-            milestone_unlocked = 0;
-        }
-
-        let unlocked = linear_unlocked
-            .checked_add(milestone_unlocked)
-            .ok_or(NirvanaError::MathOverflow)?;
+        let unlocked = recipient_unlocked(state, now)?;
 
         let recipient_share = unlocked
             .checked_sub(state.claimed_amount)
@@ -515,6 +540,36 @@ pub struct TriggerMilestone<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ReclaimMilestone<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority,
+        seeds = [b"state", authority.key().as_ref(), distribution_state.recipient.as_ref(), &distribution_state.nonce.to_le_bytes()],
+        bump = distribution_state.bump
+    )]
+    pub distribution_state: Box<Account<'info, DistributionState>>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", distribution_state.key().as_ref()],
+        bump
+    )]
+    pub token_vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        constraint = authority_token_account.owner == authority.key(),
+        constraint = authority_token_account.mint == distribution_state.token_mint
+    )]
+    pub authority_token_account: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
 pub struct TopUp<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -659,6 +714,12 @@ pub struct MilestoneTriggered {
 }
 
 #[event]
+pub struct MilestoneReclaimed {
+    pub authority: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
 pub struct ToppedUp {
     pub authority: Pubkey,
     pub additional_base: u64,
@@ -701,4 +762,8 @@ pub enum NirvanaError {
     InvalidExtension,
     #[msg("A live stream still exists for this recipient — release_vault is for orphans only.")]
     StreamStillActive,
+    #[msg("Stream has not ended yet.")]
+    StreamNotEnded,
+    #[msg("No unclaimed milestone bonus to reclaim.")]
+    NothingToReclaim,
 }

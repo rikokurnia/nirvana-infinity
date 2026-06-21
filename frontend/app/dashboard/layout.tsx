@@ -11,7 +11,6 @@ import {
   Settings,
   ArrowLeft,
   Home,
-  BarChart3,
   LogOut,
   Copy,
   Check,
@@ -193,14 +192,12 @@ function Sidebar({
     { label: "My Streams", icon: List, path: "/dashboard/founder/streams" },
     { label: "History", icon: HistoryIcon, path: "/dashboard/founder/history" },
     { label: "Customize Presets", icon: Settings, path: "/dashboard/founder/presets" },
-    { label: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },
   ];
 
   const workerMenu = [
     { label: "Overview", icon: LayoutDashboard, path: "/dashboard/worker" },
     { label: "My Streams", icon: List, path: "/dashboard/worker/streams" },
     { label: "History", icon: HistoryIcon, path: "/dashboard/worker/history" },
-    { label: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },
   ];
 
   const menuItems = role === "founder" ? founderMenu : workerMenu;

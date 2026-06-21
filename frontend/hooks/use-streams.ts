@@ -14,7 +14,9 @@ import {
   createStream as createStreamOnChain,
   fetchStreamsFor,
   getMintDecimals,
+  reclaimMilestone as reclaimMilestoneOnChain,
   releaseVault as releaseVaultOnChain,
+  triggerMilestone as triggerMilestoneOnChain,
   withdraw as withdrawOnChain,
 } from "@/lib/anchor";
 import { useNirvanaProgram } from "@/hooks/use-nirvana-program";
@@ -60,6 +62,27 @@ function toErrorMessage(err: unknown): string {
   }
   if (raw.includes("FullyVested")) {
     return "Stream has fully vested — nothing left to cancel.";
+  }
+  if (raw.includes("StreamNotEnded")) {
+    return "Stream has not ended yet — reclaim is available after the end date.";
+  }
+  if (raw.includes("NothingToReclaim")) {
+    return "No unclaimed milestone bonus to reclaim.";
+  }
+  if (raw.includes("StreamExpired")) {
+    return "Stream has ended — milestone can no longer be triggered.";
+  }
+  if (raw.includes("MilestoneAlreadyAchieved")) {
+    return "Milestone bonus was already triggered.";
+  }
+  if (raw.includes("CliffNotReached")) {
+    return "Cliff date not reached yet — cliff buffer is still locked (linear may still be claimable on updated programs).";
+  }
+  if (raw.includes("NothingToWithdraw")) {
+    return "Nothing to withdraw yet — wait for more tokens to unlock.";
+  }
+  if (/blockhash not found|block height exceeded|transaction expired/i.test(raw)) {
+    return "Network timed out — please try again (devnet RPC blockhash expired).";
   }
   if (raw.includes("User rejected") || raw.includes("WalletSignTransactionError")) {
     return "You rejected the wallet signature.";
@@ -257,6 +280,51 @@ export function useStreams() {
     [program, refresh]
   );
 
+  const handleTriggerMilestone = useCallback(
+    async (streamId: string): Promise<string> => {
+      if (!program) throw new Error("Connect your wallet first.");
+      setLoading(true);
+      setError(null);
+      try {
+        const signature = await triggerMilestoneOnChain(
+          program,
+          new PublicKey(streamId)
+        );
+        await refresh();
+        return signature;
+      } catch (err) {
+        setError(toErrorMessage(err));
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [program, refresh]
+  );
+
+  const handleReclaimMilestone = useCallback(
+    async (streamId: string, tokenMint: string): Promise<string> => {
+      if (!program) throw new Error("Connect your wallet first.");
+      setLoading(true);
+      setError(null);
+      try {
+        const signature = await reclaimMilestoneOnChain(
+          program,
+          new PublicKey(streamId),
+          new PublicKey(tokenMint)
+        );
+        await refresh();
+        return signature;
+      } catch (err) {
+        setError(toErrorMessage(err));
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [program, refresh]
+  );
+
   return {
     streams,
     loading,
@@ -275,5 +343,7 @@ export function useStreams() {
     handleReleaseVault,
     handleCancel,
     handleCreateStream,
+    handleTriggerMilestone,
+    handleReclaimMilestone,
   };
 }

@@ -223,6 +223,96 @@
       ]
     },
     {
+      "name": "reclaim_milestone",
+      "docs": [
+        "Return unclaimed milestone bonus to the founder after the stream ends",
+        "without a trigger — bonus was conditional and never awarded."
+      ],
+      "discriminator": [
+        173,
+        248,
+        167,
+        46,
+        176,
+        219,
+        26,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "distribution_state"
+          ]
+        },
+        {
+          "name": "distribution_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "distribution_state.recipient",
+                "account": "DistributionState"
+              },
+              {
+                "kind": "account",
+                "path": "distribution_state.nonce",
+                "account": "DistributionState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "distribution_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "release_vault",
       "docs": [
         "Cleanup for orphaned vaults left by streams cancelled BEFORE the",
@@ -555,6 +645,19 @@
       ]
     },
     {
+      "name": "MilestoneReclaimed",
+      "discriminator": [
+        82,
+        240,
+        235,
+        148,
+        147,
+        129,
+        60,
+        208
+      ]
+    },
+    {
       "name": "MilestoneTriggered",
       "discriminator": [
         98,
@@ -687,6 +790,16 @@
       "code": 6015,
       "name": "StreamStillActive",
       "msg": "A live stream still exists for this recipient — release_vault is for orphans only."
+    },
+    {
+      "code": 6016,
+      "name": "StreamNotEnded",
+      "msg": "Stream has not ended yet."
+    },
+    {
+      "code": 6017,
+      "name": "NothingToReclaim",
+      "msg": "No unclaimed milestone bonus to reclaim."
     }
   ],
   "types": [
@@ -777,6 +890,22 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MilestoneReclaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }

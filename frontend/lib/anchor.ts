@@ -18,6 +18,7 @@ import {
   Connection,
   PublicKey,
   SystemProgram,
+  Transaction,
   type TransactionInstruction,
 } from "@solana/web3.js";
 import idlJson from "./idl.json";
@@ -104,6 +105,60 @@ function isTransientRpcError(err: unknown): boolean {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const BLOCKHASH_RETRY =
+  /blockhash not found|block height exceeded|transaction expired|has been processed/i;
+
+/** Sign + send with a blockhash fetched immediately before signing.
+ *  Privy/Phantom popups often take long enough that Anchor's default `.rpc()`
+ *  blockhash expires → "Blockhash not found" on devnet. */
+async function confirmTransaction(
+  program: Program,
+  buildTx: () => Promise<Transaction>
+): Promise<string> {
+  const connection = program.provider.connection;
+  const wallet = program.provider.wallet;
+  if (!wallet?.publicKey) {
+    throw new Error("Connect your wallet first.");
+  }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const tx = await buildTx();
+      const latest = await connection.getLatestBlockhash("confirmed");
+      tx.recentBlockhash = latest.blockhash;
+      tx.feePayer = wallet.publicKey;
+
+      const signed = await wallet.signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize(), {
+        skipPreflight: false,
+        maxRetries: 5,
+        preflightCommitment: "confirmed",
+      });
+
+      const result = await connection.confirmTransaction(
+        {
+          signature: sig,
+          blockhash: latest.blockhash,
+          lastValidBlockHeight: latest.lastValidBlockHeight,
+        },
+        "confirmed"
+      );
+      if (result.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(result.value.err)}`);
+      }
+      return sig;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt < 2 && BLOCKHASH_RETRY.test(msg)) {
+        await sleep(600 * (attempt + 1));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Transaction failed after retries");
+}
 
 /** Run an async RPC read with backoff on transient (429/network) errors.
  *  Rethrows non-transient errors immediately; returns `onGiveUp` if every
@@ -275,28 +330,30 @@ export async function createStream(
     authority
   );
 
-  return program.methods
-    .createStream(
-      nonce,
-      args.baseAmount,
-      args.cliffAmount,
-      args.milestoneAmount,
-      new BN(args.startTime),
-      new BN(args.endTime),
-      new BN(args.cliffTime),
-      args.arbiter ?? null
-    )
-    .accounts({
-      authority,
-      recipient: args.recipient,
-      tokenMint: args.tokenMint,
-      distributionState: statePda,
-      tokenVault: vaultPda,
-      authorityTokenAccount,
-      tokenProgram: TOKEN_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
+  return confirmTransaction(program, () =>
+    program.methods
+      .createStream(
+        nonce,
+        args.baseAmount,
+        args.cliffAmount,
+        args.milestoneAmount,
+        new BN(args.startTime),
+        new BN(args.endTime),
+        new BN(args.cliffTime),
+        args.arbiter ?? null
+      )
+      .accounts({
+        authority,
+        recipient: args.recipient,
+        tokenMint: args.tokenMint,
+        distributionState: statePda,
+        tokenVault: vaultPda,
+        authorityTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .transaction()
+  );
 }
 
 export async function withdraw(
@@ -312,17 +369,19 @@ export async function withdraw(
     tokenMint
   );
 
-  return program.methods
-    .withdraw()
-    .accounts({
-      recipient,
-      distributionState: statePda,
-      tokenVault: vaultPda,
-      recipientTokenAccount,
-      tokenProgram: TOKEN_PROGRAM_ID,
-    })
-    .preInstructions([ataIx])
-    .rpc();
+  return confirmTransaction(program, () =>
+    program.methods
+      .withdraw()
+      .accounts({
+        recipient,
+        distributionState: statePda,
+        tokenVault: vaultPda,
+        recipientTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .preInstructions([ataIx])
+      .transaction()
+  );
 }
 
 export async function cancel(
@@ -344,31 +403,61 @@ export async function cancel(
     tokenMint
   );
 
-  return program.methods
-    .cancel()
-    .accounts({
-      authority,
-      distributionState: statePda,
-      tokenVault: vaultPda,
-      authorityTokenAccount,
-      recipientTokenAccount,
-      tokenProgram: TOKEN_PROGRAM_ID,
-    })
-    .preInstructions([ataIx])
-    .rpc();
+  return confirmTransaction(program, () =>
+    program.methods
+      .cancel()
+      .accounts({
+        authority,
+        distributionState: statePda,
+        tokenVault: vaultPda,
+        authorityTokenAccount,
+        recipientTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .preInstructions([ataIx])
+      .transaction()
+  );
 }
 
 export async function triggerMilestone(
   program: Program,
   statePda: PublicKey
 ): Promise<string> {
-  return program.methods
-    .triggerMilestone()
-    .accounts({
-      triggerer: program.provider.publicKey!,
-      distributionState: statePda,
-    })
-    .rpc();
+  return confirmTransaction(program, () =>
+    program.methods
+      .triggerMilestone()
+      .accounts({
+        triggerer: program.provider.publicKey!,
+        distributionState: statePda,
+      })
+      .transaction()
+  );
+}
+
+export async function reclaimMilestone(
+  program: Program,
+  statePda: PublicKey,
+  tokenMint: PublicKey
+): Promise<string> {
+  const authority = program.provider.publicKey!;
+  const vaultPda = deriveVaultPda(statePda);
+  const authorityTokenAccount = getAssociatedTokenAddressSync(
+    tokenMint,
+    authority
+  );
+
+  return confirmTransaction(program, () =>
+    program.methods
+      .reclaimMilestone()
+      .accounts({
+        authority,
+        distributionState: statePda,
+        tokenVault: vaultPda,
+        authorityTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction()
+  );
 }
 
 export interface TopUpArgs {
@@ -398,17 +487,19 @@ export async function releaseVault(
     authority
   );
 
-  return program.methods
-    .releaseVault()
-    .accounts({
-      authority,
-      recipient,
-      stateSigner: statePda,
-      tokenVault: vaultPda,
-      authorityTokenAccount,
-      tokenProgram: TOKEN_PROGRAM_ID,
-    })
-    .rpc();
+  return confirmTransaction(program, () =>
+    program.methods
+      .releaseVault()
+      .accounts({
+        authority,
+        recipient,
+        stateSigner: statePda,
+        tokenVault: vaultPda,
+        authorityTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction()
+  );
 }
 
 export async function topUp(
@@ -422,19 +513,21 @@ export async function topUp(
     authority
   );
 
-  return program.methods
-    .topUp(
-      args.additionalBase,
-      args.newEndTime != null ? new BN(args.newEndTime) : null
-    )
-    .accounts({
-      authority,
-      distributionState: args.statePda,
-      tokenVault: vaultPda,
-      authorityTokenAccount,
-      tokenProgram: TOKEN_PROGRAM_ID,
-    })
-    .rpc();
+  return confirmTransaction(program, () =>
+    program.methods
+      .topUp(
+        args.additionalBase,
+        args.newEndTime != null ? new BN(args.newEndTime) : null
+      )
+      .accounts({
+        authority,
+        distributionState: args.statePda,
+        tokenVault: vaultPda,
+        authorityTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .transaction()
+  );
 }
 
 // --- Reads ---

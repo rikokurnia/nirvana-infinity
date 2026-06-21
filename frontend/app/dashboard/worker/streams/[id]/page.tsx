@@ -324,12 +324,13 @@ export default function WorkerStreamDetailPage() {
       )}
 
       {(() => {
-        const nowSec = Date.now() / 1000;
         const isCancelled = stream.isCancelled;
-        const preCliff = nowSec < stream.cliffTime;
-        const fullyClaimed = totalUnlocked === stream.claimedAmount + stream.cliffAmount * BigInt(0) && !preCliff && claimable === BigInt(0) && stream.claimedAmount > BigInt(0);
-        const nothingYet = claimable === BigInt(0) && stream.claimedAmount === BigInt(0) && !preCliff;
-        const dust = claimable === BigInt(0) && stream.claimedAmount > BigInt(0) && !preCliff && !stream.milestoneAchieved;
+        const cliffLocked =
+          Date.now() / 1000 < stream.cliffTime && stream.cliffAmount > BigInt(0);
+        const dust =
+          claimable === BigInt(0) &&
+          stream.claimedAmount > BigInt(0) &&
+          !stream.milestoneAchieved;
 
         let title: string;
         let subtitle: string | null = null;
@@ -340,22 +341,21 @@ export default function WorkerStreamDetailPage() {
         } else if (isCancelled) {
           title = "Stream cancelled";
           subtitle = "No further withdrawals allowed.";
-        } else if (preCliff) {
-          title = "Locked until cliff";
-          subtitle = `Unlocks ${formatDate(stream.cliffTime)} — cliff lump + linear vest become claimable then.`;
         } else if (claimable > BigInt(0)) {
           title = `Withdraw ${formatTokenAmount(claimable, stream.tokenDecimals)} ${stream.tokenSymbol}`;
+          if (cliffLocked) {
+            subtitle = `Includes linear vesting — cliff buffer (${formatTokenAmount(stream.cliffAmount, stream.tokenDecimals)} ${stream.tokenSymbol}) unlocks ${formatDate(stream.cliffTime)}.`;
+          }
         } else if (dust) {
           title = `0.00 ${stream.tokenSymbol} ready`;
           subtitle = stream.milestoneAchieved
             ? "All unlocked tokens already claimed. Stream complete."
-            : `Linear is still vesting — next chunk available as time elapses. Milestone bonus (${formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} ${stream.tokenSymbol}) unlocks when KPI is hit.`;
-        } else if (nothingYet) {
-          title = "Nothing claimable yet";
-          subtitle = "Linear vest is still ramping up — check back shortly.";
+            : `Linear is still vesting — check back as time elapses. Milestone bonus (${formatTokenAmount(stream.milestoneAmount, stream.tokenDecimals)} ${stream.tokenSymbol}) unlocks when the founder triggers it.`;
         } else {
-          title = `Withdraw 0.00 ${stream.tokenSymbol}`;
-          subtitle = "Nothing claimable right now.";
+          title = "Nothing claimable yet";
+          subtitle = cliffLocked
+            ? `Linear vest is ramping up. Cliff buffer unlocks ${formatDate(stream.cliffTime)}.`
+            : "Linear vest is still ramping up — check back shortly.";
         }
 
         return (

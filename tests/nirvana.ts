@@ -284,7 +284,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
   // CLIFF VESTING
   // =========================================================================
 
-  it("should fail to withdraw before cliff", async () => {
+  it("should allow linear withdraw before cliff time", async () => {
     const { authority, recipient, authorityTokenAccount, recipientTokenAccount } = await createStreamPair();
     const now = Math.floor(Date.now() / 1000);
 
@@ -292,27 +292,30 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       authority,
       recipient: recipient.publicKey,
       authorityTokenAccount,
+      baseAmount: new anchor.BN(100_000_000),
       startTime: new anchor.BN(now),
       cliffTime: new anchor.BN(now + 10),
       endTime: new anchor.BN(now + 20),
     });
 
-    try {
-      await program.methods
-        .withdraw()
-        .accounts({
-          recipient: recipient.publicKey,
-          distributionState: statePda,
-          tokenVault: vaultPda,
-          recipientTokenAccount: recipientTokenAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .signers([recipient])
-        .rpc();
-      assert.fail("Should have thrown CliffNotReached");
-    } catch (err: any) {
-      assert.include(err.toString(), "CliffNotReached");
-    }
+    // Wait 2s: linear accrues even though cliff is still 8s away.
+    await new Promise((r) => setTimeout(r, 2000));
+
+    await program.methods
+      .withdraw()
+      .accounts({
+        recipient: recipient.publicKey,
+        distributionState: statePda,
+        tokenVault: vaultPda,
+        recipientTokenAccount: recipientTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([recipient])
+      .rpc();
+
+    const bal = await getTokenBalance(recipientTokenAccount);
+    assert.isAbove(bal, 0);
+    assert.isBelow(bal, 100);
   });
 
   it("should succeed to withdraw after cliff with correct linear amount", async () => {
@@ -1042,15 +1045,50 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
         })
         .signers([recipient])
         .rpc();
-      assert.fail("Should have thrown CliffNotReached");
+      assert.fail("Should have thrown NothingToWithdraw");
     } catch (err: any) {
-      assert.include(err.toString(), "CliffNotReached");
+      assert.include(err.toString(), "NothingToWithdraw");
     }
   });
 
-  // =========================================================================
-  // ARBITER MILESTONE
-  // =========================================================================
+  it("should let founder reclaim untriggered milestone after stream ends", async () => {
+    const { authority, recipient, authorityTokenAccount, recipientTokenAccount } = await createStreamPair();
+    const now = Math.floor(Date.now() / 1000);
+
+    const { statePda, vaultPda } = await createStream({
+      authority,
+      recipient: recipient.publicKey,
+      authorityTokenAccount,
+      baseAmount: new anchor.BN(100_000_000),
+      milestoneAmount: new anchor.BN(50_000_000),
+      startTime: new anchor.BN(now),
+      cliffTime: new anchor.BN(now),
+      endTime: new anchor.BN(now + 2),
+    });
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const creatorBefore = await getTokenBalance(authorityTokenAccount);
+
+    await program.methods
+      .reclaimMilestone()
+      .accounts({
+        authority: authority.publicKey,
+        distributionState: statePda,
+        tokenVault: vaultPda,
+        authorityTokenAccount: authorityTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([authority])
+      .rpc();
+
+    const creatorAfter = await getTokenBalance(authorityTokenAccount);
+    assert.approximately(creatorAfter - creatorBefore, 50, 0.1);
+
+    const state = await program.account.distributionState.fetch(statePda);
+    assert.equal(state.milestoneAmount.toNumber(), 0);
+    assert.isFalse(state.milestoneAchieved);
+  });
 
   it("should let a designated arbiter trigger the milestone", async () => {
     const { authority, recipient, authorityTokenAccount } = await createStreamPair();

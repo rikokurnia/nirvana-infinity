@@ -6,7 +6,7 @@ import { useAuth } from "@/app/providers/privy-provider";
 import { formatTokenAmount, calculateClaimable, formatAddress, formatDate } from "@/lib/utils";
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { Ban } from "lucide-react";
+import { Ban, Trophy, RotateCcw } from "lucide-react";
 import {
   StreamListSkeleton,
   StreamsEmpty,
@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 
 export default function FounderStreamsPage() {
-  const { getFounderStreams, walletAddress, handleCancel, loading, error, refresh } = useStreams();
+  const { getFounderStreams, walletAddress, handleCancel, handleTriggerMilestone, handleReclaimMilestone, loading, error, refresh } = useStreams();
   const { user } = useAuth();
   // Filter to streams this wallet created — never recipient-only ones. Use the
   // signing Solana address (walletAddress), NOT user.wallet.address — for
@@ -28,6 +28,8 @@ export default function FounderStreamsPage() {
   // Local flag — shared `loading` from useStreams stays true during background
   // RPC refetches, which would freeze the Cancel button on "Cancelling…".
   const [isCancelling, setIsCancelling] = useState(false);
+  const [actionStreamId, setActionStreamId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const cancellingStream = useMemo(
     () => streams.find((s) => s.id === confirmId),
@@ -101,10 +103,28 @@ export default function FounderStreamsPage() {
           }
         />
       ) : (
+        <>
+          {actionError && (
+            <p className="font-mono text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 mb-4">
+              {actionError}
+            </p>
+          )}
         <div className="grid grid-cols-1 gap-4">
           {streams.map((stream) => {
             const claimable = calculateClaimable(stream);
             const totalAmount = stream.baseAmount + stream.milestoneAmount + stream.cliffAmount;
+            const now = Math.floor(Date.now() / 1000);
+            const canTriggerMilestone =
+              !stream.isCancelled &&
+              !stream.milestoneAchieved &&
+              stream.milestoneAmount > BigInt(0) &&
+              now <= stream.endTime;
+            const canReclaimMilestone =
+              !stream.isCancelled &&
+              !stream.milestoneAchieved &&
+              stream.milestoneAmount > BigInt(0) &&
+              now > stream.endTime;
+            const isActing = actionStreamId === stream.id;
             return (
               <motion.div key={stream.id} whileHover={{ y: -2 }} className="glass-plate rounded-lg p-6">
                 <div className="flex items-start justify-between mb-3">
@@ -147,7 +167,47 @@ export default function FounderStreamsPage() {
                   <span>Milestone: {stream.milestoneAchieved ? "Achieved" : "Pending"}</span>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
+                  {canTriggerMilestone && (
+                    <button
+                      disabled={isActing}
+                      onClick={async () => {
+                        setActionError(null);
+                        setActionStreamId(stream.id);
+                        try {
+                          await handleTriggerMilestone(stream.id);
+                        } catch (err) {
+                          setActionError(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setActionStreamId(null);
+                        }
+                      }}
+                      className="flex items-center gap-1 border border-mint/30 text-mint font-mono text-xs font-bold px-4 py-2 rounded-sm hover:bg-mint/10 transition-all uppercase disabled:opacity-50"
+                    >
+                      <Trophy className="w-3 h-3" />
+                      {isActing ? "Triggering…" : "Trigger Milestone"}
+                    </button>
+                  )}
+                  {canReclaimMilestone && (
+                    <button
+                      disabled={isActing}
+                      onClick={async () => {
+                        setActionError(null);
+                        setActionStreamId(stream.id);
+                        try {
+                          await handleReclaimMilestone(stream.id, stream.tokenMint);
+                        } catch (err) {
+                          setActionError(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setActionStreamId(null);
+                        }
+                      }}
+                      className="flex items-center gap-1 border border-solana-green/30 text-solana-green font-mono text-xs font-bold px-4 py-2 rounded-sm hover:bg-solana-green/10 transition-all uppercase disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      {isActing ? "Reclaiming…" : "Reclaim Bonus"}
+                    </button>
+                  )}
                   {!stream.isCancelled && (
                     <button
                       onClick={() => {
@@ -165,6 +225,7 @@ export default function FounderStreamsPage() {
             );
           })}
         </div>
+        </>
       )}
 
       {confirmId && (
