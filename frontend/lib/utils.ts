@@ -44,12 +44,10 @@ export function calculateTotalUnlocked(stream: {
   milestoneAchieved: boolean;
 }): bigint {
   const now = Date.now() / 1000;
-  if (now < stream.cliffTime) return BigInt(0);
   const linear = calculateLinearUnlocked(stream.startTime, stream.endTime, stream.baseAmount);
+  const cliff = now >= stream.cliffTime ? stream.cliffAmount : BigInt(0);
   const milestone = stream.milestoneAchieved ? stream.milestoneAmount : BigInt(0);
-  // Cliff lump unlocks in full at cliffTime — was missing here, so the worker
-  // saw claimable=0 and the Withdraw button stayed disabled.
-  return linear + stream.cliffAmount + milestone;
+  return linear + cliff + milestone;
 }
 
 export function calculateClaimable(
