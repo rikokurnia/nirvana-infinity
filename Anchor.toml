@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-nirvana = "FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc"
+nirvana = "DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K"
 
 [programs.localnet]
-nirvana = "FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc"
+nirvana = "DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K"
 
 [registry]
 url = "https://api.apr.dev"
