@@ -74,6 +74,31 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
     }
   }
 
+  // Wall-clock sleeps are flaky in CI: JS Date.now() can run ahead of the
+  // validator's Clock sysvar, so end_time derived from Date.now() may not
+  // have passed on-chain yet when setTimeout fires. Poll the sysvar instead.
+  async function getChainTimestamp(): Promise<number> {
+    const info = await provider.connection.getAccountInfo(
+      anchor.web3.SYSVAR_CLOCK_PUBKEY
+    );
+    if (!info?.data) throw new Error("Clock sysvar unavailable");
+    return Number(info.data.readBigInt64LE(32));
+  }
+
+  async function waitUntilChainAfter(unixTs: number, timeoutMs = 30_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if ((await getChainTimestamp()) > unixTs) return;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    throw new Error(`Timed out waiting for chain time > ${unixTs}`);
+  }
+
+  async function waitUntilStreamEnded(statePda: anchor.web3.PublicKey) {
+    const state = await program.account.distributionState.fetch(statePda);
+    await waitUntilChainAfter(state.endTime.toNumber());
+  }
+
   before(async () => {
     await airdrop(mintAuthority.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
     mint = await createMint(
@@ -519,8 +544,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       endTime: new anchor.BN(now + 2),
     });
 
-    // Wait for stream to expire
-    await new Promise((r) => setTimeout(r, 3000));
+    await waitUntilStreamEnded(statePda);
 
     try {
       await program.methods
@@ -761,8 +785,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       endTime: new anchor.BN(now + 2),
     });
 
-    // Wait for stream to fully vest
-    await new Promise((r) => setTimeout(r, 3000));
+    await waitUntilStreamEnded(statePda);
 
     try {
       await program.methods
@@ -1066,7 +1089,7 @@ describe("Nirvana Protocol - Complete Test Suite", () => {
       endTime: new anchor.BN(now + 2),
     });
 
-    await new Promise((r) => setTimeout(r, 3000));
+    await waitUntilStreamEnded(statePda);
 
     const creatorBefore = await getTokenBalance(authorityTokenAccount);
 
