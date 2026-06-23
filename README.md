@@ -32,10 +32,10 @@ npm install
 To compile the smart contract and generate the IDL:
 
 ```bash
-CARGO_TARGET_DIR=$PWD/target anchor build --ignore-keys
+anchor build
 ```
 
-Note: `--ignore-keys` is required when the local deploy keypair does not match the program ID declared in source (`FxPnV48...`). This generates `target/deploy/nirvana.so` and `target/idl/nirvana_protocol.json`.
+This generates `target/deploy/nirvana.so` and `target/idl/nirvana_protocol.json`. The repo keypair matches the devnet program ID (`DygVVP...`); use `anchor build --ignore-keys` only if your local keypair differs.
 
 ### 4. Running Tests
 
@@ -53,7 +53,7 @@ The script starts a local validator, loads the program at the declared devnet ID
 ```bash
 # Terminal 1
 solana-test-validator --reset \
-  --bpf-program FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc \
+  --bpf-program DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K \
   target/deploy/nirvana.so
 
 # Terminal 2
@@ -87,7 +87,7 @@ Detailed documentation for developers and integrators can be found in the `docs/
 
 **Frontend:** https://nirvana-infinity.vercel.app
 
-**Program ID (Devnet):** `FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc`
+**Program ID (Devnet):** `DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K`
 
 ---
 

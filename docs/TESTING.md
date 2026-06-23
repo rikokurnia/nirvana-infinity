@@ -2,7 +2,7 @@
 
 This guide covers how to build, run, and maintain the Nirvana Protocol test suite and GitHub Actions pipeline. It complements the [Integration Guide](./INTEGRATION.md) (how to call the program) with developer/CI workflow details.
 
-**Program ID (devnet / local tests):** `FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc`
+**Program ID (devnet / local tests):** `DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K`
 
 ---
 
@@ -74,7 +74,7 @@ ANCHOR_WALLET=/path/to/id.json ./run-tests.sh
 
 ```bash
 solana-test-validator --reset \
-  --bpf-program FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc \
+  --bpf-program DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K \
   target/deploy/nirvana.so
 ```
 

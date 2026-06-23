@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-PROGRAM_ID="FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc"
+PROGRAM_ID="DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K"
 WALLET="${ANCHOR_WALLET:-$HOME/.config/solana/id.json}"
 
 # Node 20+/26 treats yargs' extensionless CJS file as ESM because yargs ships

@@ -13,7 +13,7 @@ These are Anchor **integration** tests: the program runs as compiled BPF inside 
 ```bash
 # Terminal 1
 solana-test-validator --reset \
-  --bpf-program FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc target/deploy/nirvana.so
+  --bpf-program DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K target/deploy/nirvana.so
 # Terminal 2
 ANCHOR_PROVIDER_URL=http://localhost:8899 ANCHOR_WALLET=~/.config/solana/id.json npm test
 ```

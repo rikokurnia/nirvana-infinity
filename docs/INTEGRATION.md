@@ -25,7 +25,7 @@ const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 
 // Initialize program
-const programId = new anchor.web3.PublicKey("FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc");
+const programId = new anchor.web3.PublicKey("DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K");
 const program = new Program(IDL as any, provider);
 ```
 

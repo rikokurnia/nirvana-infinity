@@ -1,6 +1,6 @@
 # Nirvana Protocol — Security Review (Week 7)
 
-**Program:** `FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc` (devnet)
+**Program:** `DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K` (devnet)
 **Scope:** `programs/nirvana/src/lib.rs` — `create_stream`, `withdraw`, `cancel`, `trigger_milestone`, `top_up`, `release_vault`
 **Framework:** Anchor 0.31.1
 **Reviewer:** Riko Kurnia Sandi
@@ -81,7 +81,7 @@ An unauthorized signer also changes the derived state-PDA seeds, so Anchor rejec
 ```bash
 # Terminal 1
 solana-test-validator --reset \
-  --bpf-program FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc target/deploy/nirvana.so
+  --bpf-program DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K target/deploy/nirvana.so
 
 # Terminal 2
 ANCHOR_PROVIDER_URL=http://localhost:8899 \

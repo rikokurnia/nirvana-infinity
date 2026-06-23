@@ -48,7 +48,7 @@ We introduced an optional `arbiter` field (a `Pubkey`) during stream creation. I
 ## ADR 4: Local Testing via `--bpf-program` Without Deploy Keypair
 
 ### Context
-Contributors cloning the repo often cannot deploy to the program ID declared in `declare_id!` because their local `target/deploy/nirvana-keypair.json` does not match the devnet address (`FxPnV48...`). Without a workaround, `anchor test` fails on program ID mismatch and CI cannot run integration tests reliably.
+Contributors cloning the repo often cannot deploy to the program ID declared in `declare_id!` because their local `target/deploy/nirvana-keypair.json` does not match the devnet address (`DygVVP...`). Without a workaround, `anchor test` fails on program ID mismatch and CI cannot run integration tests reliably.
 
 ### Decision
 We use two flags/patterns:

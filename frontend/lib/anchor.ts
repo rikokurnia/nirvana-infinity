@@ -27,7 +27,7 @@ import { MOCK_TOKEN_SYMBOLS, MOCK_TOKEN_DECIMALS } from "./tokens";
 
 export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID ??
-    "FxPnV48rg9KkK6huUimjcjL9H4xssM8n7j3uva8k9tmc"
+    "DygVVPMyA2WnbfJiqta38ySR3YhnKbqbFcNzcsjkti4K"
 );
 
 export const RPC_URL =
