@@ -10,6 +10,10 @@ import { PublicKey } from "@solana/web3.js";
 import type { DistributionState } from "@/lib/types";
 import { calculateClaimable } from "@/lib/utils";
 import {
+  isFounderStreamActive,
+  isWorkerStreamActive,
+} from "@/lib/stream-status";
+import {
   cancel as cancelOnChain,
   createStream as createStreamOnChain,
   fetchStreamsFor,
@@ -158,6 +162,30 @@ export function useStreams() {
         ? streams.filter((s) => s.authority === founderAddress)
         : [],
     [streams]
+  );
+
+  const getActiveWorkerStreams = useCallback(
+    (workerAddress: string): DistributionState[] =>
+      getWorkerStreams(workerAddress).filter(isWorkerStreamActive),
+    [getWorkerStreams]
+  );
+
+  const getCompletedWorkerStreams = useCallback(
+    (workerAddress: string): DistributionState[] =>
+      getWorkerStreams(workerAddress).filter((s) => !isWorkerStreamActive(s)),
+    [getWorkerStreams]
+  );
+
+  const getActiveFounderStreams = useCallback(
+    (founderAddress: string): DistributionState[] =>
+      getFounderStreams(founderAddress).filter(isFounderStreamActive),
+    [getFounderStreams]
+  );
+
+  const getCompletedFounderStreams = useCallback(
+    (founderAddress: string): DistributionState[] =>
+      getFounderStreams(founderAddress).filter((s) => !isFounderStreamActive(s)),
+    [getFounderStreams]
   );
 
   const getStream = useCallback(
@@ -339,6 +367,10 @@ export function useStreams() {
     getClaimable,
     getWorkerStreams,
     getFounderStreams,
+    getActiveWorkerStreams,
+    getCompletedWorkerStreams,
+    getActiveFounderStreams,
+    getCompletedFounderStreams,
     handleWithdraw,
     handleReleaseVault,
     handleCancel,

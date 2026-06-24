@@ -23,20 +23,20 @@ import {
 import { GasButton } from "@/app/components/gas-button";
 
 export default function WorkerPage() {
-  const { getWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
+  const { getWorkerStreams, getActiveWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
   // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
   // — for MetaMask/EVM logins those differ and the list would show nothing.
   const workerAddress = walletAddress;
   const myStreams = getWorkerStreams(workerAddress);
-  const showSkeleton = loading && myStreams.length === 0;
-  const showError = !!error && myStreams.length === 0;
-  const activeStreams = myStreams.filter((s) => !s.isCancelled);
+  const activeStreams = getActiveWorkerStreams(workerAddress);
+  const showSkeleton = loading && activeStreams.length === 0 && myStreams.length === 0;
+  const showError = !!error && activeStreams.length === 0 && myStreams.length === 0;
   const totalClaimed = myStreams.reduce((sum, s) => sum + s.claimedAmount, BigInt(0));
   const totalClaimable = activeStreams.reduce(
     (sum, s) => sum + calculateClaimable(s),
     BigInt(0)
   );
-  const pendingMilestones = activeStreams.filter((s) => !s.milestoneAchieved).length;
+  const pendingMilestones = activeStreams.filter((s) => !s.milestoneAchieved && s.milestoneAmount > BigInt(0)).length;
 
   return (
     <div>
@@ -74,11 +74,11 @@ export default function WorkerPage() {
         <StreamsError message={error} onRetry={refresh} />
       ) : showSkeleton ? (
         <StreamListSkeleton />
-      ) : myStreams.length === 0 ? (
-        <StreamsEmpty message="No streams assigned yet" />
+      ) : activeStreams.length === 0 ? (
+        <StreamsEmpty message="No active streams — see History for completed ones" />
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {myStreams.map((stream) => {
+          {activeStreams.map((stream) => {
             const claimable = calculateClaimable(stream);
             const totalAmount = stream.baseAmount + stream.milestoneAmount + stream.cliffAmount;
             const claimedPct = Number((stream.claimedAmount * BigInt(100)) / totalAmount);

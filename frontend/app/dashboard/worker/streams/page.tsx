@@ -19,20 +19,20 @@ import {
 } from "@/app/components/stream-states";
 
 export default function WorkerStreamsPage() {
-  const { getWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
+  const { getActiveWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
   // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
   // — for MetaMask/EVM logins those differ and the list would show nothing.
   const workerAddress = walletAddress;
-  const myStreams = getWorkerStreams(workerAddress);
-  const showSkeleton = loading && myStreams.length === 0;
-  const showError = !!error && myStreams.length === 0;
+  const activeStreams = getActiveWorkerStreams(workerAddress);
+  const showSkeleton = loading && activeStreams.length === 0;
+  const showError = !!error && activeStreams.length === 0;
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="font-headline text-3xl font-bold tracking-tight">My Streams</h1>
         <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
-          All token streams assigned to you
+          Streams with tokens left to claim or unlock
         </p>
       </div>
 
@@ -40,11 +40,11 @@ export default function WorkerStreamsPage() {
         <StreamsError message={error} onRetry={refresh} />
       ) : showSkeleton ? (
         <StreamListSkeleton />
-      ) : myStreams.length === 0 ? (
-        <StreamsEmpty message="No streams yet" />
+      ) : activeStreams.length === 0 ? (
+        <StreamsEmpty message="No active streams — see History for completed ones" />
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {myStreams.map((stream) => {
+          {activeStreams.map((stream) => {
             const claimable = calculateClaimable(stream);
             const linearUnlocked = calculateLinearUnlocked(stream.startTime, stream.endTime, stream.baseAmount);
             const totalAmount = stream.baseAmount + stream.milestoneAmount + stream.cliffAmount;

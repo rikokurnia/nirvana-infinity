@@ -25,24 +25,26 @@ import {
 } from "@/app/components/stream-states";
 
 export default function FounderPage() {
-  const { getFounderStreams, walletAddress, loading, error, refresh } = useStreams();
+  const { getFounderStreams, getActiveFounderStreams, walletAddress, loading, error, refresh } = useStreams();
   // Only show streams this wallet *created* — recipient-only streams belong
   // on the worker view and must never bleed into the founder dashboard.
   // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
   // — for MetaMask/EVM logins those differ and the dashboard would show nothing.
   const founderAddress = walletAddress;
   const streams = getFounderStreams(founderAddress);
+  const activeStreams = getActiveFounderStreams(founderAddress);
   // Show skeletons on first load; keep showing data during background refetches.
   const showSkeleton = loading && streams.length === 0;
   const showError = !!error && streams.length === 0;
 
-  const activeStreams = streams.filter((s) => !s.isCancelled);
   const totalAllocated = activeStreams.reduce(
     (sum, s) => sum + s.baseAmount + s.milestoneAmount + s.cliffAmount,
     BigInt(0)
   );
   const totalClaimed = streams.reduce((sum, s) => sum + s.claimedAmount, BigInt(0));
-  const pendingMilestones = activeStreams.filter((s) => !s.milestoneAchieved).length;
+  const pendingMilestones = activeStreams.filter(
+    (s) => !s.milestoneAchieved && s.milestoneAmount > BigInt(0)
+  ).length;
   const uniqueRecipients = new Set(activeStreams.map((s) => s.recipient)).size;
 
   const recentStreams = activeStreams.slice(0, 5);

@@ -29,7 +29,7 @@ export default function WorkerStreamDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
-  const { getStream, getClaimable, handleWithdraw } = useStreams();
+  const { getStream, getClaimable, handleWithdraw, walletAddress } = useStreams();
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   // Local flag — shared `loading` from useStreams stays true during background
   // RPC refetches, which would freeze the button forever ("PROCESSING…" bug).
@@ -54,7 +54,7 @@ export default function WorkerStreamDetailPage() {
           tokenDecimals: stream?.tokenDecimals ?? 9,
           timestamp: Date.now(),
         };
-        const key = `nirvana:withdraw-history:${stream?.recipient ?? "unknown"}`;
+        const key = `nirvana:withdraw-history:${walletAddress || "unknown"}`;
         const prev = JSON.parse(localStorage.getItem(key) ?? "[]");
         localStorage.setItem(key, JSON.stringify([entry, ...prev].slice(0, 100)));
       } catch {

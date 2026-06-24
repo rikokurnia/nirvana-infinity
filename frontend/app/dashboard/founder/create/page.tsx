@@ -37,7 +37,7 @@ function newRow(): RecipientRow {
 }
 
 export default function CreateStreamPage() {
-  const { handleCreateStream, handleReleaseVault } = useStreams();
+  const { handleCreateStream, handleReleaseVault, walletAddress } = useStreams();
   const { user } = useAuth();
   const router = useRouter();
   // When the program rejects create_stream because a stuck vault PDA exists
@@ -140,7 +140,7 @@ export default function CreateStreamPage() {
         // Founder history entry. Stored as UI float amount (no decimals math
         // needed) since this is a display log, not a settlement record.
         try {
-          const key = `nirvana:founder-history:${user?.wallet?.address ?? "unknown"}`;
+          const key = `nirvana:founder-history:${walletAddress || "unknown"}`;
           const prev = JSON.parse(localStorage.getItem(key) ?? "[]");
           const entry = {
             type: "create" as const,
