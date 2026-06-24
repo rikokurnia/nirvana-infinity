@@ -15,12 +15,12 @@ import {
 import Link from "next/link";
 
 export default function FounderStreamsPage() {
-  const { getFounderStreams, walletAddress, handleCancel, handleTriggerMilestone, handleReclaimMilestone, loading, error, refresh } = useStreams();
+  const { getActiveFounderStreams, walletAddress, handleCancel, handleTriggerMilestone, handleReclaimMilestone, loading, error, refresh } = useStreams();
   const { user } = useAuth();
   // Filter to streams this wallet created — never recipient-only ones. Use the
   // signing Solana address (walletAddress), NOT user.wallet.address — for
   // MetaMask/EVM logins those differ and the list would show nothing.
-  const streams = getFounderStreams(walletAddress);
+  const streams = getActiveFounderStreams(walletAddress);
   const showSkeleton = loading && streams.length === 0;
   const showError = !!error && streams.length === 0;
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export default function FounderStreamsPage() {
       const signature = await handleCancel(confirmId);
       // Append to founder history.
       try {
-        const key = `nirvana:founder-history:${user?.wallet?.address ?? "unknown"}`;
+        const key = `nirvana:founder-history:${walletAddress || "unknown"}`;
         const prev = JSON.parse(localStorage.getItem(key) ?? "[]");
         const entry = {
           type: "cancel" as const,
@@ -82,7 +82,7 @@ export default function FounderStreamsPage() {
       <div className="mb-8">
         <h1 className="font-headline text-3xl font-bold tracking-tight">My Streams</h1>
         <p className="font-mono text-xs text-on-surface-variant mt-2 uppercase tracking-widest">
-          Manage all your created streams
+          Active streams — completed ones are in History
         </p>
       </div>
 
@@ -92,7 +92,7 @@ export default function FounderStreamsPage() {
         <StreamListSkeleton />
       ) : streams.length === 0 ? (
         <StreamsEmpty
-          message="No streams created yet"
+          message="No active streams — see History for completed ones"
           action={
             <Link
               href="/dashboard/founder/create"
