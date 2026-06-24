@@ -52,7 +52,8 @@ export function isFounderStreamActive(stream: DistributionState): boolean {
 
   if (now < stream.endTime) return true;
 
-  if (calculateClaimable(stream) > BigInt(0)) return true;
-
+  // Founder is done once vesting ended and milestone is handled (triggered,
+  // reclaimed, or never allocated). Worker-side claimable does not keep the
+  // stream on the founder dashboard.
   return false;
 }

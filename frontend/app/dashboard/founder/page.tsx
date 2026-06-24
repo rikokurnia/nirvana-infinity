@@ -34,8 +34,8 @@ export default function FounderPage() {
   const streams = getFounderStreams(founderAddress);
   const activeStreams = getActiveFounderStreams(founderAddress);
   // Show skeletons on first load; keep showing data during background refetches.
-  const showSkeleton = loading && streams.length === 0;
-  const showError = !!error && streams.length === 0;
+  const showSkeleton = loading && activeStreams.length === 0 && streams.length === 0;
+  const showError = !!error && activeStreams.length === 0 && streams.length === 0;
 
   const totalAllocated = activeStreams.reduce(
     (sum, s) => sum + s.baseAmount + s.milestoneAmount + s.cliffAmount,
@@ -98,14 +98,27 @@ export default function FounderPage() {
         <StreamListSkeleton />
       ) : activeStreams.length === 0 ? (
         <StreamsEmpty
-          message="No active streams yet"
+          message={
+            streams.length === 0
+              ? "No streams created yet"
+              : "No active streams — see History for completed ones"
+          }
           action={
-            <Link
-              href="/dashboard/founder/create"
-              className="text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors"
-            >
-              Create your first stream
-            </Link>
+            streams.length === 0 ? (
+              <Link
+                href="/dashboard/founder/create"
+                className="text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors"
+              >
+                Create your first stream
+              </Link>
+            ) : (
+              <Link
+                href="/dashboard/founder/history"
+                className="text-mint font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-colors"
+              >
+                View history
+              </Link>
+            )
           }
         />
       ) : (
