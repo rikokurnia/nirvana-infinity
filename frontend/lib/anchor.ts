@@ -54,14 +54,6 @@ function getGpaConnection(): Connection {
   return gpaConnection;
 }
 
-/** True when the RPC rejected getProgramAccounts because of plan/tier limits. */
-function isGpaUnavailable(err: unknown): boolean {
-  const msg = String((err as { message?: string })?.message ?? err);
-  return /getProgramAccounts is not available|not available on the Free tier|method not found|-32601|-32600/i.test(
-    msg
-  );
-}
-
 export const idl = idlJson as Idl;
 
 // Decode program accounts with a coder built directly from the IDL. The
@@ -99,7 +91,7 @@ function isAccountMissing(err: unknown): boolean {
 /** True for transient RPC failures worth retrying (rate limit / network). */
 function isTransientRpcError(err: unknown): boolean {
   const msg = String((err as { message?: string })?.message ?? err);
-  return /429|too many requests|rate limit|fetch failed|timeout|503|502|ECONNRESET/i.test(
+  return /429|too many requests|rate limit|fetch failed|timeout|503|502|504|-32504|ECONNRESET/i.test(
     msg
   );
 }
@@ -584,18 +576,19 @@ export async function fetchStreamsFor(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchByOffset = async (offset: number): Promise<{ publicKey: PublicKey; account: any }[]> => {
     const filters = [{ memcmp: { offset, bytes: wallet.toBase58() } }];
-    let raw;
-    try {
-      // Try the app's primary RPC first (works if it's a paid tier).
-      raw = await program.provider.connection.getProgramAccounts(PROGRAM_ID, {
-        filters,
-      });
-    } catch (err) {
-      // Free tiers block gPA — fall back to the public devnet endpoint that
-      // allows it. Rethrow anything that isn't a tier/method rejection.
-      if (!isGpaUnavailable(err)) throw err;
-      raw = await getGpaConnection().getProgramAccounts(PROGRAM_ID, { filters });
-    }
+    const gpaConn = getGpaConnection();
+
+    // Heavy gPA scans use the dedicated endpoint (public devnet by default).
+    // Helius free tier times out (-32504) when used as the primary RPC.
+    const raw = await withRpcRetry(
+      async () => gpaConn.getProgramAccounts(PROGRAM_ID, { filters }),
+      () => {
+        throw new Error(
+          "Could not load streams — devnet RPC timed out. Check NEXT_PUBLIC_GPA_RPC_URL and retry."
+        );
+      },
+      3
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const decoded: { publicKey: PublicKey; account: any }[] = [];
     for (const { pubkey, account } of raw) {
@@ -611,8 +604,10 @@ export async function fetchStreamsFor(
     }
     return decoded;
   };
-  const asAuthority = await fetchByOffset(8); // offset of `authority`
-  const asRecipient = await fetchByOffset(8 + 32); // offset of `recipient`
+  const [asAuthority, asRecipient] = await Promise.all([
+    fetchByOffset(8), // offset of `authority`
+    fetchByOffset(8 + 32), // offset of `recipient`
+  ]);
 
   // Fetch decimals once per unique mint so the UI can render base units
   // correctly (mUSDC=6, SOL=9, etc.). Missing/failed → default to 9.
