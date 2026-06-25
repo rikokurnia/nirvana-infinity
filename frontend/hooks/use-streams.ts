@@ -4,7 +4,7 @@
 // existing pages keep working — but every read/write now hits the Nirvana
 // program on Solana via the Privy-signed Anchor provider.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import type { DistributionState } from "@/lib/types";
@@ -94,6 +94,23 @@ function toErrorMessage(err: unknown): string {
   return raw;
 }
 
+function withFetchTimeout<T>(promise: Promise<T>, ms = 45000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Stream fetch timed out — devnet RPC may be slow or rate-limited. Try again."
+            )
+          ),
+        ms
+      );
+    }),
+  ]);
+}
+
 export function useStreams() {
   const { program, walletPubkey, ready } = useNirvanaProgram();
   const [streams, setStreams] = useState<DistributionState[]>([]);
@@ -101,13 +118,17 @@ export function useStreams() {
   // of flashing "No streams yet" before the initial on-chain fetch resolves.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const streamsRef = useRef(streams);
+  streamsRef.current = streams;
 
   const refresh = useCallback(async () => {
     if (!program || !walletPubkey) return;
-    setLoading(true);
+    // Background refetches must not flip the UI back to skeletons when we
+    // already have data on screen (e.g. all streams are completed).
+    if (streamsRef.current.length === 0) setLoading(true);
     setError(null);
     try {
-      setStreams(await fetchStreamsFor(program, walletPubkey));
+      setStreams(await withFetchTimeout(fetchStreamsFor(program, walletPubkey)));
     } catch (err) {
       setError(toErrorMessage(err));
     } finally {
@@ -129,10 +150,12 @@ export function useStreams() {
         }
         return;
       }
-      setLoading(true);
+      if (streamsRef.current.length === 0) setLoading(true);
       setError(null);
       try {
-        const fetched = await fetchStreamsFor(program, walletPubkey);
+        const fetched = await withFetchTimeout(
+          fetchStreamsFor(program, walletPubkey)
+        );
         if (!cancelled) setStreams(fetched);
       } catch (err) {
         if (!cancelled) setError(toErrorMessage(err));

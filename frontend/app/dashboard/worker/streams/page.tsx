@@ -19,13 +19,12 @@ import {
 } from "@/app/components/stream-states";
 
 export default function WorkerStreamsPage() {
-  const { getActiveWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
-  // Filter by the signing Solana address (walletAddress), NOT user.wallet.address
-  // — for MetaMask/EVM logins those differ and the list would show nothing.
+  const { getWorkerStreams, getActiveWorkerStreams, walletAddress, loading, error, refresh } = useStreams();
   const workerAddress = walletAddress;
+  const myStreams = getWorkerStreams(workerAddress);
   const activeStreams = getActiveWorkerStreams(workerAddress);
-  const showSkeleton = loading && activeStreams.length === 0;
-  const showError = !!error && activeStreams.length === 0;
+  const showSkeleton = loading && myStreams.length === 0;
+  const showError = !!error && myStreams.length === 0;
 
   return (
     <div>

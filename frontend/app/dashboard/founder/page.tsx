@@ -34,8 +34,8 @@ export default function FounderPage() {
   const streams = getFounderStreams(founderAddress);
   const activeStreams = getActiveFounderStreams(founderAddress);
   // Show skeletons on first load; keep showing data during background refetches.
-  const showSkeleton = loading && activeStreams.length === 0 && streams.length === 0;
-  const showError = !!error && activeStreams.length === 0 && streams.length === 0;
+  const showSkeleton = loading && streams.length === 0;
+  const showError = !!error && streams.length === 0;
 
   const totalAllocated = activeStreams.reduce(
     (sum, s) => sum + s.baseAmount + s.milestoneAmount + s.cliffAmount,
