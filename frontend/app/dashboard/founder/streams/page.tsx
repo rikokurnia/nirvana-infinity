@@ -15,14 +15,12 @@ import {
 import Link from "next/link";
 
 export default function FounderStreamsPage() {
-  const { getActiveFounderStreams, walletAddress, handleCancel, handleTriggerMilestone, handleReclaimMilestone, loading, error, refresh } = useStreams();
+  const { getFounderStreams, getActiveFounderStreams, walletAddress, handleCancel, handleTriggerMilestone, handleReclaimMilestone, loading, error, refresh } = useStreams();
   const { user } = useAuth();
-  // Filter to streams this wallet created — never recipient-only ones. Use the
-  // signing Solana address (walletAddress), NOT user.wallet.address — for
-  // MetaMask/EVM logins those differ and the list would show nothing.
+  const allStreams = getFounderStreams(walletAddress);
   const streams = getActiveFounderStreams(walletAddress);
-  const showSkeleton = loading && streams.length === 0;
-  const showError = !!error && streams.length === 0;
+  const showSkeleton = loading && allStreams.length === 0;
+  const showError = !!error && allStreams.length === 0;
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
   // Local flag — shared `loading` from useStreams stays true during background

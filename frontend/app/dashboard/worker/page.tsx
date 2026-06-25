@@ -29,8 +29,8 @@ export default function WorkerPage() {
   const workerAddress = walletAddress;
   const myStreams = getWorkerStreams(workerAddress);
   const activeStreams = getActiveWorkerStreams(workerAddress);
-  const showSkeleton = loading && activeStreams.length === 0 && myStreams.length === 0;
-  const showError = !!error && activeStreams.length === 0 && myStreams.length === 0;
+  const showSkeleton = loading && myStreams.length === 0;
+  const showError = !!error && myStreams.length === 0;
   const totalClaimed = myStreams.reduce((sum, s) => sum + s.claimedAmount, BigInt(0));
   const totalClaimable = activeStreams.reduce(
     (sum, s) => sum + calculateClaimable(s),
